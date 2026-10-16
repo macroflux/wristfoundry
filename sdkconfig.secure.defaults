@@ -1,0 +1,6 @@
+# Explicit secure-credential profile. Use only after reading docs/SECURE_STORAGE.md.
+# On first boot, ESP-IDF may permanently burn a random HMAC_UP key into the
+# selected empty eFuse block. Inspect the target device before flashing.
+CONFIG_NVS_ENCRYPTION=y
+CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC=y
+CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID=0
