@@ -29,3 +29,7 @@ Before using it:
 This profile encrypts NVS credentials. Secure boot and full flash encryption are
 separate production decisions. Do not enable or burn either automatically on a
 development watch.
+
+CI builds this profile and verifies its configuration without access to a
+device. CI therefore cannot burn eFuses. Secure build artifacts are retained
+only briefly and are excluded from automated public release bundles.

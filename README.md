@@ -50,6 +50,15 @@ The normal development build can run without encrypted NVS, but Settings will
 block credential saving. After inspecting eFuses and selecting a key block,
 build the secure profile as documented in `docs/SECURE_STORAGE.md`.
 
+## CI/CD
+
+Pull requests and pushes to `main` build both the development and encrypted-NVS
+profiles with ESP-IDF 5.5.5, assert the secure configuration, scan for private
+material, and retain checksummed firmware artifacts. Semantic version tags build
+a normal-profile release bundle and create a draft GitHub release for human
+approval. Secure-profile binaries are never placed in public release bundles.
+See [CI/CD policy](docs/CI_CD.md).
+
 ## Add an app
 
 Define a `wf_app_t`, implement the lifecycle callbacks you need, and register it

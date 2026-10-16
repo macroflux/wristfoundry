@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  public-safety:
+    name: Public safety checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Reject generated or private material
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '(^|/)(build[^/]*|managed_components|backups)(/|$)|(^|/)sdkconfig$|\.(bin|elf|map|pem|key|nvs|dump)$'; then
+            echo 'Generated, secret, or device material is tracked.' >&2
+            exit 1
+          fi
+          if git grep -n -i -E 'CommandWatch|CWIFI|phone_time|VICKY|NEXUS|macroflux|C:\\Users|BEGIN .*PRIVATE KEY' -- . ':(exclude).github/workflows/ci.yml'; then
+            echo 'Private-upstream identifier or secret material detected.' >&2
+            exit 1
+          fi
+
+  build-development:
+    name: Development firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build with ESP-IDF 5.5.5
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.5
+          target: esp32s3
+          path: .
+
+      - name: Record checksums
+        shell: bash
+        run: |
+          sha256sum \
+            build/bootloader/bootloader.bin \
+            build/partition_table/partition-table.bin \
+            build/wristfoundry.bin > build/SHA256SUMS
+
+      - name: Upload development firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: wristfoundry-development-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin
+            build/wristfoundry.bin
+            build/flash_args
+            build/SHA256SUMS
+
+  build-secure:
+    name: Encrypted-NVS firmware
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build isolated secure profile with ESP-IDF 5.5.5
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.5
+          target: esp32s3
+          path: .
+          command: >-
+            idf.py -B build-secure
+            -DSDKCONFIG=build-secure/sdkconfig
+            -DSDKCONFIG_DEFAULTS=sdkconfig.defaults\;sdkconfig.secure.defaults
+            build
+
+      - name: Assert encrypted-NVS configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '^#define CONFIG_NVS_ENCRYPTION 1$' build-secure/config/sdkconfig.h
+          grep -q '^#define CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC 1$' build-secure/config/sdkconfig.h
+          grep -q '^#define CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID 0$' build-secure/config/sdkconfig.h
+
+      - name: Record checksums
+        shell: bash
+        run: |
+          sha256sum \
+            build-secure/bootloader/bootloader.bin \
+            build-secure/partition_table/partition-table.bin \
+            build-secure/wristfoundry.bin > build-secure/SHA256SUMS
+
+      - name: Upload secure-profile firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: wristfoundry-secure-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            build-secure/bootloader/bootloader.bin
+            build-secure/partition_table/partition-table.bin
+            build-secure/wristfoundry.bin
+            build-secure/flash_args
+            build-secure/SHA256SUMS

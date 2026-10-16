@@ -1,0 +1,68 @@
+name: Draft release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build draft release
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+
+      - name: Validate semantic version tag
+        shell: bash
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a tag like v0.1.0; received $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+      - name: Build development firmware with ESP-IDF 5.5.5
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5.5
+          target: esp32s3
+          path: .
+
+      - name: Assemble release bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp build/bootloader/bootloader.bin dist/wristfoundry-bootloader.bin
+          cp build/partition_table/partition-table.bin dist/wristfoundry-partition-table.bin
+          cp build/wristfoundry.bin dist/wristfoundry.bin
+          cp build/flash_args dist/flash_args
+          cp LICENSE NOTICE THIRD_PARTY_NOTICES.md dist/
+          (cd dist && sha256sum *.bin > SHA256SUMS)
+          tar -C dist -czf "wristfoundry-${GITHUB_REF_NAME}.tar.gz" .
+
+      - name: Upload release bundle to workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: wristfoundry-${{ github.ref_name }}
+          if-no-files-found: error
+          path: |
+            wristfoundry-${{ github.ref_name }}.tar.gz
+            dist/SHA256SUMS
+
+      - name: Create draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --draft \
+            --verify-tag \
+            --title "WristFoundry $GITHUB_REF_NAME" \
+            --generate-notes \
+            "wristfoundry-${GITHUB_REF_NAME}.tar.gz" \
+            dist/SHA256SUMS
