@@ -18,6 +18,7 @@ static QueueHandle_t s_commands;
 static time_sync_snapshot_t s_snapshot;
 static uint32_t s_network_generation;
 static int64_t s_last_request_ms;
+static bool s_persist_history;
 
 static int64_t now_ms(void) { return esp_timer_get_time() / 1000; }
 static void lock(void) { xSemaphoreTake(s_lock, portMAX_DELAY); }
@@ -25,6 +26,7 @@ static void unlock(void) { xSemaphoreGive(s_lock); }
 
 static void save_success(const char *source, const char *local, int64_t epoch)
 {
+    if (!s_persist_history) return;
     nvs_handle_t handle;
     if (nvs_open("time_sync", NVS_READWRITE, &handle) != ESP_OK) return;
     esp_err_t result = nvs_set_str(handle, "source", source);
@@ -37,6 +39,7 @@ static void save_success(const char *source, const char *local, int64_t epoch)
 
 static void load_success(void)
 {
+    if (!s_persist_history) return;
     nvs_handle_t handle;
     if (nvs_open("time_sync", NVS_READONLY, &handle) != ESP_OK) return;
     size_t source_len = sizeof(s_snapshot.last_source);
@@ -71,7 +74,7 @@ static void begin_sync(void)
     strlcpy(s_snapshot.status, network.credentials_present ?
             "Connecting to Wi-Fi" : "Wi-Fi not configured", sizeof(s_snapshot.status));
     strlcpy(s_snapshot.detail, network.credentials_present ?
-            "Using saved network, then pool.ntp.org" :
+            "Using configured network, then pool.ntp.org" :
             "Add credentials in Settings; BLE time sync is unsupported",
             sizeof(s_snapshot.detail));
     unlock();
@@ -143,9 +146,10 @@ static void service_task(void *arg)
     }
 }
 
-esp_err_t time_sync_service_init(void)
+esp_err_t time_sync_service_init(bool persist_history)
 {
     if (s_lock != NULL) return ESP_OK;
+    s_persist_history = persist_history;
     s_lock = xSemaphoreCreateMutex();
     s_commands = xQueueCreate(3, sizeof(sync_command_t));
     if (s_lock == NULL || s_commands == NULL) return ESP_ERR_NO_MEM;
@@ -157,7 +161,8 @@ esp_err_t time_sync_service_init(void)
     strlcpy(s_snapshot.last_source, "NEVER", sizeof(s_snapshot.last_source));
     load_success();
     if (xTaskCreate(service_task, "time_sync", 4096, NULL, 5, NULL) != pdPASS) return ESP_ERR_NO_MEM;
-    ESP_LOGI(TAG, "service ready: Wi-Fi/NTP with hardware RTC persistence");
+    ESP_LOGI(TAG, "service ready: Wi-Fi/NTP with hardware RTC; history=%s",
+             s_persist_history ? "encrypted NVS" : "volatile");
     return ESP_OK;
 }
 

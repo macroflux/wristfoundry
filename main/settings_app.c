@@ -54,11 +54,15 @@ static void save_event(lv_event_t *event)
         lv_textarea_get_text(s_settings.password),
         lv_textarea_get_text(s_settings.timezone));
     if (result == ESP_OK) {
-        lv_label_set_text(s_settings.status, "Saved securely. Tap CONNECT or SYNC TIME.");
+        lv_label_set_text(
+            s_settings.status,
+            network_service_credentials_are_encrypted()
+                ? "Saved securely. Tap CONNECT or SYNC TIME."
+                : "Ready until reboot. Tap CONNECT or SYNC TIME.");
         lv_textarea_set_text(s_settings.password, "");
-    } else if (result == ESP_ERR_NOT_SUPPORTED) {
+    } else if (result == ESP_ERR_INVALID_STATE) {
         lv_label_set_text(s_settings.status,
-                          "Save blocked: build with the secure NVS profile first.");
+                          "Save blocked: encrypted credential storage is unavailable.");
     } else {
         lv_label_set_text_fmt(s_settings.status, "Save failed: %s", esp_err_to_name(result));
     }
@@ -126,7 +130,7 @@ void settings_app_create(wf_app_t *app)
         security,
         network_service_credentials_are_encrypted() ?
             "CREDENTIAL STORE / ENCRYPTED NVS" :
-            "CREDENTIAL STORE / LOCKED (SECURE BUILD REQUIRED)",
+            "CREDENTIAL STORE / VOLATILE (CLEARED ON REBOOT)",
         &lv_font_montserrat_14,
         network_service_credentials_are_encrypted() ? WF_COLOR_PRIMARY : WF_COLOR_WARNING);
     lv_obj_set_width(security_label, 326);
@@ -144,7 +148,9 @@ void settings_app_create(wf_app_t *app)
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_SPACE_BETWEEN,
                           LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_t *save = wf_ui_button_create(row, "SAVE", save_event, NULL);
+    lv_obj_t *save = wf_ui_button_create(
+        row, network_service_credentials_are_encrypted() ? "SAVE" : "USE ONCE",
+        save_event, NULL);
     lv_obj_set_width(save, 112);
     lv_obj_t *clear = wf_ui_button_create(row, "CLEAR", clear_event, NULL);
     lv_obj_set_width(clear, 112);
@@ -161,6 +167,7 @@ void settings_app_create(wf_app_t *app)
     s_settings.keyboard = lv_keyboard_create(app->screen);
     lv_obj_set_size(s_settings.keyboard, WF_DISPLAY_WIDTH, 218);
     lv_obj_align(s_settings.keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_add_event_cb(s_settings.keyboard, keyboard_event, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_add_event_cb(s_settings.keyboard, keyboard_event, LV_EVENT_READY, NULL);
     lv_obj_add_event_cb(s_settings.keyboard, keyboard_event, LV_EVENT_CANCEL, NULL);
     lv_obj_add_flag(s_settings.keyboard, LV_OBJ_FLAG_HIDDEN);

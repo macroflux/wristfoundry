@@ -12,7 +12,11 @@ Every pull request and push to `main` runs three independent gates:
 2. the normal development profile builds for ESP32-S3 with ESP-IDF 5.5.5 and
    publishes a short-lived workflow artifact with SHA-256 checksums; and
 3. the encrypted-NVS profile builds in an isolated directory, asserts the
-   required security settings, and publishes a shorter-lived artifact.
+   required security settings, including disabled secure-profile coredumps, and
+   publishes a shorter-lived artifact.
+
+The development build also produces a CycloneDX 1.6 SBOM with Espressif's SBOM
+tool pinned to version 1.5.0.
 
 CI builds never connect to hardware and cannot burn eFuses. A successful secure
 build is not authorization to flash it.
@@ -32,5 +36,6 @@ Configure the GitHub `release` environment with required reviewers before the
 first version tag is pushed. Branch protection should require all CI jobs on
 `main` and should disallow direct pushes once the repository is hosted.
 
-The workflows use Espressif's official container-backed CI action and pin the
-toolchain to ESP-IDF 5.5.5. Dependabot checks GitHub Actions dependencies weekly.
+The workflows use Espressif's official container-backed CI action, pin every
+third-party action to an immutable commit SHA, and select ESP-IDF 5.5.5.
+Dependabot checks GitHub Actions dependencies weekly.

@@ -9,5 +9,14 @@ identifiers, generated build directories, or dependency caches. New apps should
 use the framework lifecycle instead of directly owning global navigation or
 radio state.
 
-Run a clean build, review `git diff --check`, and update the hardware matrix and
-power notes when changing board services.
+Before submitting a change:
+
+- run clean development and secure-profile builds
+- run `git diff --check`
+- confirm that the development profile does not enable encrypted NVS
+- confirm that the secure profile enables HMAC-backed encrypted NVS and disables
+  flash core dumps
+- update the hardware matrix and power notes when changing board services
+
+Hardware-dependent changes must identify what was tested on the watch and what
+remains unverified. Never bypass the secure-flash acknowledgement script.

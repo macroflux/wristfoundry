@@ -291,7 +291,7 @@ static void start_stack(void)
     if (!s_port_initialized) {
         if (!ble_radio_owner_claim(BLE_RADIO_OWNER_RADAR)) {
             set_result(BLE_RADAR_ERROR, ESP_ERR_INVALID_STATE,
-                       "BLE BUSY: PHONE TIME");
+                       "BLE BUSY: ANOTHER OWNER");
             return;
         }
         const int rc = nimble_port_init();

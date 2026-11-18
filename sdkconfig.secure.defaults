@@ -4,3 +4,8 @@
 CONFIG_NVS_ENCRYPTION=y
 CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC=y
 CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID=0
+
+# Runtime stacks can contain decrypted credentials. Do not persist crash dumps
+# in the secure profile while full flash encryption is disabled.
+# CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH is not set
+CONFIG_ESP_COREDUMP_ENABLE_TO_NONE=y

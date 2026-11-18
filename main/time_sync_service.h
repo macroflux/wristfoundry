@@ -26,7 +26,7 @@ typedef struct {
     char last_local[24];
 } time_sync_snapshot_t;
 
-esp_err_t time_sync_service_init(void);
+esp_err_t time_sync_service_init(bool persist_history);
 bool time_sync_service_request_auto(void);
 void time_sync_service_cancel(const char *reason);
 void time_sync_service_get_snapshot(time_sync_snapshot_t *snapshot);

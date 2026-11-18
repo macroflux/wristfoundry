@@ -1,0 +1,8 @@
+version: 0.1.0
+description: Open-source ESP32-S3 watch firmware framework
+supplier: 'Organization: WristFoundry contributors'
+license: Apache-2.0
+purl: pkg:generic/wristfoundry@{}
+document:
+  manufacturer:
+    name: 'Organization: WristFoundry contributors'

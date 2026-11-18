@@ -3,19 +3,22 @@
 Each phase includes a clean build, physical hardware checks, sleep/off behavior,
 and comparative battery-path power measurements.
 
-## Phase 1 — sanitized foundation (current)
+## Phase 1 — 0.1.0 release candidate (current)
 
 - independent Apache-2.0 repository and public documentation
 - watch face, launcher, lifecycle/registration API, scrolling and back behavior
 - System, Settings, and bounded BLE Radar examples
 - on-watch LVGL keyboard provisioning
-- encrypted-NVS-only credential persistence
+- development profile with RAM-only credentials and no persistence
+- optional HMAC-backed encrypted NVS with an explicit irreversible warning
 - Wi-Fi/NTP primary time synchronization with PCF85063 RTC persistence
-- no BLE phone-time feature
+- no BLE time-synchronization feature
 - existing dim/off/light-sleep and power-test modes
 
-Acceptance still required: clean build, clean-device flash, keyboard usability,
-real-AP NTP-to-RTC, battery sleep/wake regression, and exposure review.
+Host-side release preparation is complete when CI produces clean development
+and secure builds, checksums, and an SBOM. Final hardware acceptance remains:
+keyboard usability, real-AP NTP-to-RTC, credential reboot persistence in the
+secure profile, battery sleep/wake regression, and a post-test exposure review.
 
 ## Phase 2 — stable app SDK
 
@@ -55,7 +58,7 @@ wake sources. Publish the method and measured budgets.
 Only after the hardware foundation is complete, consider provider-neutral voice
 or network examples. Keep secrets secure and cloud services optional.
 
-## Phase 9 — release
+## Phase 9 — later stable release
 
-Run license/SBOM and secret scans, create reproducible artifacts, publish measured
-hardware validation, tag the first release, and write the public launch material.
+Publish measured hardware validation and close the remaining hardware roadmap
+before declaring a stable 1.0 release.

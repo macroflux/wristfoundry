@@ -15,6 +15,8 @@ typedef enum {
 
 typedef struct {
     network_state_t state;
+    bool credential_store_ready;
+    bool credential_store_encrypted;
     bool credentials_present;
     bool radio_active;
     bool sync_in_progress;
@@ -35,7 +37,7 @@ typedef struct {
     char last_sync_result[32];
 } network_snapshot_t;
 
-esp_err_t network_service_init(void);
+esp_err_t network_service_init(bool nvs_ready);
 esp_err_t network_service_save_configuration(const char *ssid,
                                               const char *password,
                                               const char *timezone);

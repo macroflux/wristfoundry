@@ -15,7 +15,9 @@ jobs:
     environment: release
     steps:
       - name: Check out tagged source
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Validate semantic version tag
         shell: bash
@@ -26,27 +28,35 @@ jobs:
           fi
 
       - name: Build development firmware with ESP-IDF 5.5.5
-        uses: espressif/esp-idf-ci-action@v1
+        uses: espressif/esp-idf-ci-action@e6f5c74232b1ccd4c97ed641f1e48553853f1fd5 # v1.2.0
         with:
           esp_idf_version: v5.5.5
           target: esp32s3
           path: .
+          command: >-
+            idf.py build &&
+            python -m pip install --disable-pip-version-check esp-idf-sbom==1.5.0 &&
+            esp-idf-sbom create --format cyclonedx-json@1.6 --vex-format none
+            --output-file build/wristfoundry.cdx.json build/project_description.json
 
       - name: Assemble release bundle
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p dist
-          cp build/bootloader/bootloader.bin dist/wristfoundry-bootloader.bin
-          cp build/partition_table/partition-table.bin dist/wristfoundry-partition-table.bin
+          mkdir -p dist/bootloader dist/partition_table
+          cp build/bootloader/bootloader.bin dist/bootloader/bootloader.bin
+          cp build/partition_table/partition-table.bin dist/partition_table/partition-table.bin
           cp build/wristfoundry.bin dist/wristfoundry.bin
           cp build/flash_args dist/flash_args
-          cp LICENSE NOTICE THIRD_PARTY_NOTICES.md dist/
-          (cd dist && sha256sum *.bin > SHA256SUMS)
+          cp LICENSE NOTICE THIRD_PARTY_NOTICES.md README.md SECURITY.md dist/
+          cp docs/INSTALL.md dist/INSTALL.md
+          cp docs/RECOVERY.md dist/RECOVERY.md
+          cp build/wristfoundry.cdx.json dist/
+          (cd dist && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
           tar -C dist -czf "wristfoundry-${GITHUB_REF_NAME}.tar.gz" .
 
       - name: Upload release bundle to workflow run
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wristfoundry-${{ github.ref_name }}
           if-no-files-found: error

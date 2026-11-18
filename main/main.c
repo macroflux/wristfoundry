@@ -924,15 +924,22 @@ void app_main(void)
     /* Let LVGL/BSP reserve its DMA-capable display resources before network
        task stacks consume internal RAM. The radio remains off during init. */
     if (WRISTFOUNDRY_POWER_TEST_MODE == POWER_TEST_NORMAL) {
+#if CONFIG_NVS_ENCRYPTION && CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC
+        ESP_LOGW(TAG, "SECURE STORAGE PROFILE: first boot may permanently provision the configured HMAC eFuse key block");
         esp_err_t nvs_result = nvs_flash_init();
         if (nvs_result != ESP_OK) {
             ESP_LOGW(TAG, "NVS unavailable; credentials cannot be loaded: %s",
                      esp_err_to_name(nvs_result));
         }
+#else
+        const esp_err_t nvs_result = ESP_ERR_NOT_SUPPORTED;
+        ESP_LOGI(TAG, "Development profile: NVS intentionally left uninitialized; Wi-Fi credentials are RAM-only");
+#endif
         ESP_ERROR_CHECK(ble_radio_owner_init());
         ESP_ERROR_CHECK(ble_radar_service_init());
-        ESP_ERROR_CHECK(network_service_init());
-        ESP_ERROR_CHECK(time_sync_service_init());
+        ESP_ERROR_CHECK(network_service_init(nvs_result == ESP_OK));
+        ESP_ERROR_CHECK(time_sync_service_init(
+            network_service_credentials_are_encrypted()));
     }
 
     ESP_LOGI(TAG, "AMOLED ready: %ld x %ld",

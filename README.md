@@ -8,7 +8,7 @@ the hardware RTC, and an optional bounded BLE scanner example.
 
 This repository is a clean public extraction. It has its own history and does
 not contain factory images, private product apps, device backups, generated
-build trees, saved credentials, or BLE phone-time code.
+build trees, saved credentials, or private BLE features.
 
 ## What is verified
 
@@ -29,11 +29,13 @@ on-watch keyboard flow remain hardware acceptance tests.
 
 ## Security boundary
 
-Wi-Fi credentials are stored only in NVS. WristFoundry refuses to persist them
-unless ESP-IDF NVS encryption is enabled. It never stores credentials on the SD
-card. The secure profile uses the ESP32-S3 HMAC peripheral and requires an
-explicit, irreversible eFuse decision; read [Secure storage](docs/SECURE_STORAGE.md)
-before flashing it.
+Persistent Wi-Fi credentials are stored only in encrypted NVS. The development
+profile holds them in RAM until reboot, and WristFoundry never stores them on
+the SD card. The secure profile uses the ESP32-S3 HMAC peripheral. Its first boot can
+automatically and permanently provision the configured eFuse key block. This
+is intentional but irreversible. Read [Secure storage](docs/SECURE_STORAGE.md)
+before building or flashing it. Secure firmware is not included in public
+release bundles.
 
 BLE is optional and is not a clock source. Time synchronization is Wi-Fi/NTP
 first, with the PCF85063 keeping time while offline.
@@ -46,9 +48,13 @@ Requirements: ESP-IDF 5.5.5 and PowerShell 7 or Windows PowerShell 5.1.
 .\scripts\Build.ps1
 ```
 
-The normal development build can run without encrypted NVS, but Settings will
-block credential saving. After inspecting eFuses and selecting a key block,
-build the secure profile as documented in `docs/SECURE_STORAGE.md`.
+See [installation and flashing](docs/INSTALL.md) for source builds, release
+bundles, recovery preparation, and the separate secure-profile workflow.
+
+The normal development build keeps Wi-Fi credentials in RAM until reboot. It
+never persists or loads them and does not provision security eFuses. After
+inspecting eFuses and selecting a key block, build the secure profile as
+documented in `docs/SECURE_STORAGE.md`.
 
 ## CI/CD
 
@@ -66,10 +72,11 @@ before `wf_app_manager_finish_registration()`. See [App development](docs/APP_DE
 
 ## Project status
 
-This is a pre-release foundation, version 0.1.0. Hardware support is expanded in
+This is the 0.1.0 release candidate. Hardware support is expanded in
 measured phases so each feature has a power budget and sleep policy. See the
 [roadmap](docs/ROADMAP.md), [hardware matrix](docs/HARDWARE.md), and
-[power policy](docs/POWER.md).
+[power policy](docs/POWER.md). The remaining release gate is documented in the
+[release checklist](docs/RELEASE_CHECKLIST.md).
 
 Licensed under Apache-2.0. See `LICENSE`, `NOTICE`, and
 `THIRD_PARTY_NOTICES.md`.

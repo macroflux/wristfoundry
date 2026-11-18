@@ -11,7 +11,10 @@ flash size, MAC redaction policy, and restore command outside the public tree.
 
 The secure NVS build adds an additional one-way risk: its first boot can burn an
 HMAC key into the configured eFuse block. `-RecoveryReady` does not make eFuses
-reversible. Read `SECURE_STORAGE.md` separately.
+reversible. Read `SECURE_STORAGE.md` separately. Secure flashing is only exposed
+through `Flash-Secure.ps1`, which also requires
+`-AcknowledgePermanentHmacEfuseProvisioning` and prints a read-only eFuse summary
+before writing flash.
 
 Normal flash, after preparation:
 

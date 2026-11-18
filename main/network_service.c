@@ -38,6 +38,7 @@ static const char *TAG = "network";
 static SemaphoreHandle_t s_lock;
 static network_snapshot_t s_snapshot;
 static char s_password[65];
+static bool s_nvs_ready;
 static esp_netif_t *s_sta_netif;
 static bool s_wifi_initialized;
 static bool s_wifi_started;
@@ -55,6 +56,12 @@ static uint8_t s_connect_attempts;
 
 static void lock(void) { xSemaphoreTake(s_lock, portMAX_DELAY); }
 static void unlock(void) { xSemaphoreGive(s_lock); }
+
+static void secure_zero(void *buffer, size_t length)
+{
+    volatile unsigned char *cursor = buffer;
+    while (length-- > 0) *cursor++ = 0;
+}
 
 const char *network_service_state_name(network_state_t state)
 {
@@ -107,7 +114,7 @@ static esp_err_t load_configuration(void)
     }
     nvs_close(handle);
     if (result == ESP_ERR_NVS_NOT_FOUND) {
-        memset(s_password, 0, sizeof(s_password));
+        secure_zero(s_password, sizeof(s_password));
         memset(s_snapshot.ssid, 0, sizeof(s_snapshot.ssid));
         strlcpy(s_snapshot.timezone, "NOT SET", sizeof(s_snapshot.timezone));
         strlcpy(s_snapshot.last_connect_result, "NOT PROVISIONED",
@@ -121,12 +128,11 @@ static esp_err_t load_configuration(void)
                 sizeof(s_snapshot.last_connect_result));
         setenv("TZ", s_snapshot.timezone, 1);
         tzset();
-        ESP_LOGI(TAG, "Saved network configuration loaded: SSID=%s timezone=%s",
-                 s_snapshot.ssid, s_snapshot.timezone);
+        ESP_LOGI(TAG, "Saved encrypted network configuration loaded");
         return ESP_OK;
     }
 
-    memset(s_password, 0, sizeof(s_password));
+    secure_zero(s_password, sizeof(s_password));
     memset(s_snapshot.ssid, 0, sizeof(s_snapshot.ssid));
     strlcpy(s_snapshot.timezone, "NOT SET", sizeof(s_snapshot.timezone));
     strlcpy(s_snapshot.last_connect_result, "INCOMPLETE CONFIG",
@@ -137,7 +143,7 @@ static esp_err_t load_configuration(void)
 bool network_service_credentials_are_encrypted(void)
 {
 #if CONFIG_NVS_ENCRYPTION
-    return true;
+    return s_nvs_ready;
 #else
     return false;
 #endif
@@ -153,12 +159,15 @@ esp_err_t network_service_save_configuration(const char *ssid,
         strlen(timezone) >= sizeof(s_snapshot.timezone)) {
         return ESP_ERR_INVALID_ARG;
     }
-    if (!network_service_credentials_are_encrypted()) {
-        ESP_LOGE(TAG, "Refusing to persist Wi-Fi credentials without encrypted NVS");
-        return ESP_ERR_NOT_SUPPORTED;
+#if CONFIG_NVS_ENCRYPTION
+    if (!s_nvs_ready) {
+        ESP_LOGE(TAG, "Refusing to persist Wi-Fi credentials because encrypted NVS is unavailable");
+        return ESP_ERR_INVALID_STATE;
     }
+#endif
 
     network_service_force_off("SETTINGS UPDATE");
+#if CONFIG_NVS_ENCRYPTION
     nvs_handle_t handle = 0;
     esp_err_t result = nvs_open("network", NVS_READWRITE, &handle);
     if (result == ESP_OK) result = nvs_set_str(handle, "ssid", ssid);
@@ -167,6 +176,7 @@ esp_err_t network_service_save_configuration(const char *ssid,
     if (result == ESP_OK) result = nvs_commit(handle);
     if (handle != 0) nvs_close(handle);
     if (result != ESP_OK) return result;
+#endif
 
     lock();
     strlcpy(s_snapshot.ssid, ssid, sizeof(s_snapshot.ssid));
@@ -177,8 +187,8 @@ esp_err_t network_service_save_configuration(const char *ssid,
     unlock();
     setenv("TZ", timezone, 1);
     tzset();
-    ESP_LOGI(TAG, "Encrypted network configuration saved: SSID=%s timezone=%s",
-             ssid, timezone);
+    ESP_LOGI(TAG, "%s network configuration accepted",
+             network_service_credentials_are_encrypted() ? "Encrypted persistent" : "Volatile");
     return ESP_OK;
 }
 
@@ -186,14 +196,17 @@ esp_err_t network_service_clear_configuration(void)
 {
     if (s_lock == NULL) return ESP_ERR_INVALID_STATE;
     network_service_force_off("SETTINGS CLEAR");
+#if CONFIG_NVS_ENCRYPTION
+    if (!s_nvs_ready) return ESP_ERR_INVALID_STATE;
     nvs_handle_t handle = 0;
     esp_err_t result = nvs_open("network", NVS_READWRITE, &handle);
     if (result == ESP_OK) result = nvs_erase_all(handle);
     if (result == ESP_OK) result = nvs_commit(handle);
     if (handle != 0) nvs_close(handle);
     if (result != ESP_OK) return result;
+#endif
     lock();
-    memset(s_password, 0, sizeof(s_password));
+    secure_zero(s_password, sizeof(s_password));
     memset(s_snapshot.ssid, 0, sizeof(s_snapshot.ssid));
     strlcpy(s_snapshot.timezone, "NOT SET", sizeof(s_snapshot.timezone));
     s_snapshot.credentials_present = false;
@@ -228,8 +241,7 @@ static void wifi_event(void *argument, esp_event_base_t base, int32_t id, void *
         snprintf(s_snapshot.ip, sizeof(s_snapshot.ip), IPSTR, IP2STR(&event->ip_info.ip));
         s_online_started_us = esp_timer_get_time();
         set_state_locked(NETWORK_STATE_ONLINE, "CONNECTED");
-        ESP_LOGI(TAG, "Connected: SSID=%s IP=%s duration_ms=%" PRId64,
-                 s_snapshot.ssid, s_snapshot.ip,
+        ESP_LOGI(TAG, "Connected to configured network: duration_ms=%" PRId64,
                  (s_online_started_us - s_connect_started_us) / 1000);
         unlock();
     }
@@ -273,8 +285,9 @@ static esp_err_t start_radio(void)
     config.sta.threshold.authmode = WIFI_AUTH_OPEN;
     config.sta.pmf_cfg.capable = true;
     config.sta.pmf_cfg.required = false;
-    ESP_RETURN_ON_ERROR(esp_wifi_set_config(WIFI_IF_STA, &config), TAG,
-                        "Station configuration failed");
+    result = esp_wifi_set_config(WIFI_IF_STA, &config);
+    secure_zero(&config, sizeof(config));
+    ESP_RETURN_ON_ERROR(result, TAG, "Station configuration failed");
     ESP_RETURN_ON_ERROR(esp_wifi_start(), TAG, "Radio start failed");
 
     s_wifi_started = true;
@@ -464,8 +477,8 @@ static void perform_ntp_sync(void)
             sizeof(s_snapshot.last_sync_result));
     unlock();
 
-    ESP_LOGI(TAG, "NTP synchronization started: server=pool.ntp.org timeout_ms=%d timezone=%s",
-             NTP_TIMEOUT_MS, s_snapshot.timezone);
+    ESP_LOGI(TAG, "NTP synchronization started: server=pool.ntp.org timeout_ms=%d",
+             NTP_TIMEOUT_MS);
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
     esp_err_t result = esp_netif_sntp_init(&config);
     if (result == ESP_OK) {
@@ -590,12 +603,12 @@ static void provisioning_task(void *argument)
             const uint64_t current_radio_ms = s_wifi_started
                                                   ? (uint64_t)((now - s_radio_started_us) / 1000)
                                                   : 0;
-            printf("WFNET_ACK STATUS configured=%s ssid=%s timezone=%s "
+            printf("WFNET_ACK STATUS configured=%s encrypted=%s "
                    "state=%s radio=%s leases=%" PRIu32 " radio_ms=%" PRIu64
                    " total_radio_ms=%" PRIu64 " connect_result=%s sync_result=%s\n",
                    s_snapshot.credentials_present ? "yes" : "no",
-                   s_snapshot.credentials_present ? s_snapshot.ssid : "-",
-                   s_snapshot.timezone, network_service_state_name(s_snapshot.state),
+                   s_snapshot.credential_store_encrypted ? "yes" : "no",
+                   network_service_state_name(s_snapshot.state),
                    s_wifi_started ? "on" : "off", s_snapshot.lease_count,
                    current_radio_ms, s_snapshot.cumulative_radio_active_ms,
                    s_snapshot.last_connect_result, s_snapshot.last_sync_result);
@@ -655,7 +668,10 @@ static void provisioning_task(void *argument)
             char *password_hex = strchr(ssid_hex, ' ');
             char *timezone_hex = password_hex != NULL ? strchr(password_hex + 1, ' ') : NULL;
             if (password_hex == NULL || timezone_hex == NULL) {
-                printf("WFNET_ACK SET result=INVALID_FORMAT\n"); fflush(stdout); continue;
+                printf("WFNET_ACK SET result=INVALID_FORMAT\n");
+                fflush(stdout);
+                secure_zero(line, sizeof(line));
+                continue;
             }
             *password_hex++ = '\0';
             *timezone_hex++ = '\0';
@@ -667,12 +683,16 @@ static void provisioning_task(void *argument)
             if (!decode_hex(ssid_hex, ssid, sizeof(ssid)) || !password_ok ||
                 !decode_hex(timezone_hex, timezone, sizeof(timezone)) ||
                 ssid[0] == '\0' || timezone[0] == '\0') {
-                printf("WFNET_ACK SET result=INVALID_VALUE\n"); fflush(stdout); continue;
+                printf("WFNET_ACK SET result=INVALID_VALUE\n");
+                fflush(stdout);
+                secure_zero(password, sizeof(password));
+                secure_zero(line, sizeof(line));
+                continue;
             }
             esp_err_t result = network_service_save_configuration(ssid, password, timezone);
-            memset(password, 0, sizeof(password));
-            printf("WFNET_ACK SET result=%s ssid=%s timezone=%s\n",
-                   esp_err_to_name(result), ssid, timezone);
+            secure_zero(password, sizeof(password));
+            secure_zero(line, sizeof(line));
+            printf("WFNET_ACK SET result=%s\n", esp_err_to_name(result));
             fflush(stdout);
         }
     }
@@ -718,8 +738,8 @@ static void service_task(void *argument)
             } else if (now >= s_next_retry_us) {
                 s_connect_attempts++;
                 s_next_retry_us = now + RETRY_INTERVAL_MS * 1000LL;
-                ESP_LOGI(TAG, "Connect attempt %u/%u SSID=%s", s_connect_attempts,
-                         MAX_CONNECT_ATTEMPTS, s_snapshot.ssid);
+                ESP_LOGI(TAG, "Connect attempt %u/%u", s_connect_attempts,
+                         MAX_CONNECT_ATTEMPTS);
                 esp_err_t result = esp_wifi_connect();
                 if (result != ESP_OK) {
                     strlcpy(s_snapshot.last_connect_result, esp_err_to_name(result),
@@ -742,8 +762,9 @@ static void service_task(void *argument)
     }
 }
 
-esp_err_t network_service_init(void)
+esp_err_t network_service_init(bool nvs_ready)
 {
+    s_nvs_ready = nvs_ready;
     s_lock = xSemaphoreCreateMutex();
     if (s_lock == NULL) return ESP_ERR_NO_MEM;
     usb_serial_jtag_driver_config_t usb_config = {
@@ -763,9 +784,19 @@ esp_err_t network_service_init(void)
             sizeof(s_snapshot.last_sync_result));
     strlcpy(s_snapshot.last_sync_source, "NONE",
             sizeof(s_snapshot.last_sync_source));
-    esp_err_t result = load_configuration();
-    if (result != ESP_OK && result != ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(TAG, "Network configuration unavailable: %s", esp_err_to_name(result));
+    s_snapshot.credential_store_ready = s_nvs_ready;
+    s_snapshot.credential_store_encrypted = network_service_credentials_are_encrypted();
+    if (s_snapshot.credential_store_encrypted) {
+        esp_err_t result = load_configuration();
+        if (result != ESP_OK && result != ESP_ERR_INVALID_STATE) {
+            ESP_LOGW(TAG, "Encrypted network configuration unavailable: %s",
+                     esp_err_to_name(result));
+        }
+    } else {
+        strlcpy(s_snapshot.timezone, "NOT SET", sizeof(s_snapshot.timezone));
+        strlcpy(s_snapshot.last_connect_result, "VOLATILE ONLY",
+                sizeof(s_snapshot.last_connect_result));
+        ESP_LOGI(TAG, "Persistent Wi-Fi credentials are disabled; provisioning is RAM-only");
     }
     if (xTaskCreate(service_task, "network_service", 6144, NULL, 5, NULL) != pdPASS ||
         xTaskCreate(provisioning_task, "wifi_provision", 6144, NULL, 3, NULL) != pdPASS) {

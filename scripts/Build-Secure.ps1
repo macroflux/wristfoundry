@@ -8,7 +8,8 @@ if ($Clean -and (Test-Path -LiteralPath $buildDirectory)) {
     Invoke-Checked idf.py -B $buildDirectory fullclean
 }
 
-Write-Warning 'This profile can burn the selected HMAC eFuse key on first boot after flashing.'
+Write-Warning 'IRREVERSIBLE FIRST-BOOT BEHAVIOR: this profile can permanently program the selected HMAC eFuse key block.'
+Write-Warning 'Building is safe; flashing and booting the result is the irreversible boundary.'
 Write-Warning 'Read docs/SECURE_STORAGE.md and inspect the target device before flashing.'
 Invoke-Checked idf.py -B $buildDirectory `
     '-DSDKCONFIG=build-secure/sdkconfig' `
