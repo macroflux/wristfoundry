@@ -6,3 +6,4 @@ purl: pkg:generic/wristfoundry@{}
 document:
   manufacturer:
     name: 'Organization: WristFoundry contributors'
+    url: 'https://github.com/macroflux/wristfoundry'

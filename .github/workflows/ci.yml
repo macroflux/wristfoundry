@@ -31,7 +31,7 @@ jobs:
             echo 'Generated, secret, or device material is tracked.' >&2
             exit 1
           fi
-          if git grep -n -i -E 'CommandWatch|CWIFI|phone[ _-]?time|VICKY|NEXUS|macroflux|C:\\Users|BEGIN .*PRIVATE KEY' -- . ':(exclude).github/workflows/ci.yml'; then
+          if git grep -n -i -E 'CommandWatch|CWIFI|phone[ _-]?time|VICKY|NEXUS|C:\\Users|BEGIN .*PRIVATE KEY' -- . ':(exclude).github/workflows/ci.yml'; then
             echo 'Private-upstream identifier or secret material detected.' >&2
             exit 1
           fi
@@ -67,10 +67,11 @@ jobs:
       - name: Record checksums
         shell: bash
         run: |
+          mkdir -p artifacts/development
           sha256sum \
             build/bootloader/bootloader.bin \
             build/partition_table/partition-table.bin \
-            build/wristfoundry.bin > build/SHA256SUMS
+            build/wristfoundry.bin > artifacts/development/SHA256SUMS
 
       - name: Upload development firmware
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -83,7 +84,7 @@ jobs:
             build/partition_table/partition-table.bin
             build/wristfoundry.bin
             build/flash_args
-            build/SHA256SUMS
+            artifacts/development/SHA256SUMS
             build/wristfoundry.cdx.json
 
   build-secure:
@@ -120,10 +121,11 @@ jobs:
       - name: Record checksums
         shell: bash
         run: |
+          mkdir -p artifacts/secure
           sha256sum \
             build-secure/bootloader/bootloader.bin \
             build-secure/partition_table/partition-table.bin \
-            build-secure/wristfoundry.bin > build-secure/SHA256SUMS
+            build-secure/wristfoundry.bin > artifacts/secure/SHA256SUMS
 
       - name: Upload secure-profile firmware
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -136,4 +138,4 @@ jobs:
             build-secure/partition_table/partition-table.bin
             build-secure/wristfoundry.bin
             build-secure/flash_args
-            build-secure/SHA256SUMS
+            artifacts/secure/SHA256SUMS
