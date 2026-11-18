@@ -13,6 +13,14 @@ typedef enum {
     NETWORK_STATE_ERROR,
 } network_state_t;
 
+#define NETWORK_SCAN_MAX_RESULTS 8
+
+typedef struct {
+    char ssid[33];
+    int8_t rssi;
+    bool secured;
+} network_scan_result_t;
+
 typedef struct {
     network_state_t state;
     bool credential_store_ready;
@@ -20,6 +28,11 @@ typedef struct {
     bool credentials_present;
     bool radio_active;
     bool sync_in_progress;
+    bool scan_in_progress;
+    uint32_t scan_generation;
+    size_t scan_count;
+    network_scan_result_t scan_results[NETWORK_SCAN_MAX_RESULTS];
+    char last_scan_result[32];
     uint32_t lease_count;
     char ssid[33];
     char ip[16];
@@ -48,6 +61,7 @@ void network_service_release(const char *owner);
 void network_service_force_off(const char *reason);
 void network_service_request_manual_connect(void);
 void network_service_release_manual_connect(void);
+bool network_service_request_scan(void);
 bool network_service_request_time_sync(void);
 void network_service_cancel_time_sync(void);
 void network_service_get_snapshot(network_snapshot_t *snapshot);

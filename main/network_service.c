@@ -33,6 +33,7 @@
 #define NTP_TIMEOUT_MS 12000
 #define SERVICE_TICK_MS 100
 #define PROVISION_LINE_MAX 520
+#define WIFI_SCAN_RECORD_LIMIT 24
 
 static const char *TAG = "network";
 static SemaphoreHandle_t s_lock;
@@ -47,12 +48,16 @@ static bool s_sync_lease;
 static bool s_sync_requested;
 static bool s_sync_cancel_requested;
 static bool s_start_requested;
+static bool s_scan_requested;
 static int64_t s_connect_started_us;
 static int64_t s_next_retry_us;
 static int64_t s_idle_deadline_us;
 static int64_t s_radio_started_us;
 static int64_t s_online_started_us;
 static uint8_t s_connect_attempts;
+static wifi_ap_record_t s_scan_records[WIFI_SCAN_RECORD_LIMIT];
+
+static esp_err_t ensure_wifi_initialized(void);
 
 static void lock(void) { xSemaphoreTake(s_lock, portMAX_DELAY); }
 static void unlock(void) { xSemaphoreGive(s_lock); }
@@ -371,6 +376,9 @@ void network_service_force_off(const char *reason)
     s_sync_requested = false;
     s_sync_cancel_requested = true;
     s_start_requested = false;
+    s_scan_requested = false;
+    if (s_snapshot.scan_in_progress) (void)esp_wifi_scan_stop();
+    s_snapshot.scan_in_progress = false;
     s_snapshot.sync_in_progress = false;
     s_snapshot.lease_count = 0;
     stop_radio_locked(reason != NULL ? reason : "FORCED OFF");
@@ -397,6 +405,22 @@ void network_service_release_manual_connect(void)
     s_manual_lease = false;
     unlock();
     if (release) network_service_release("manual-ui");
+}
+
+bool network_service_request_scan(void)
+{
+    if (s_lock == NULL) return false;
+    lock();
+    if (s_scan_requested || s_snapshot.scan_in_progress || s_wifi_started ||
+        s_start_requested || s_snapshot.lease_count != 0) {
+        unlock();
+        return false;
+    }
+    s_scan_requested = true;
+    strlcpy(s_snapshot.last_scan_result, "REQUESTED",
+            sizeof(s_snapshot.last_scan_result));
+    unlock();
+    return true;
 }
 
 bool network_service_request_time_sync(void)
@@ -466,6 +490,95 @@ void network_service_get_snapshot(network_snapshot_t *snapshot)
         if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) snapshot->rssi = ap.rssi;
     }
     unlock();
+}
+
+static void sanitize_scan_ssid(const uint8_t *source, char *destination,
+                               size_t destination_size)
+{
+    size_t index = 0;
+    while (index + 1 < destination_size && index < 32 && source[index] != '\0') {
+        const unsigned char value = source[index];
+        destination[index] = (value >= 0x20 && value <= 0x7e) ? (char)value : '?';
+        index++;
+    }
+    destination[index] = '\0';
+}
+
+static void finish_scan(esp_err_t result, wifi_ap_record_t *records,
+                        uint16_t record_count)
+{
+    lock();
+    memset(s_snapshot.scan_results, 0, sizeof(s_snapshot.scan_results));
+    s_snapshot.scan_count = 0;
+    if (result == ESP_OK) {
+        for (uint16_t i = 0;
+             i < record_count && s_snapshot.scan_count < NETWORK_SCAN_MAX_RESULTS;
+             ++i) {
+            char ssid[33];
+            sanitize_scan_ssid(records[i].ssid, ssid, sizeof(ssid));
+            if (ssid[0] == '\0') continue;
+            bool duplicate = false;
+            for (size_t j = 0; j < s_snapshot.scan_count; ++j) {
+                if (strcmp(s_snapshot.scan_results[j].ssid, ssid) == 0) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate) continue;
+            network_scan_result_t *entry =
+                &s_snapshot.scan_results[s_snapshot.scan_count++];
+            strlcpy(entry->ssid, ssid, sizeof(entry->ssid));
+            entry->rssi = records[i].rssi;
+            entry->secured = records[i].authmode != WIFI_AUTH_OPEN;
+        }
+        strlcpy(s_snapshot.last_scan_result,
+                s_snapshot.scan_count > 0 ? "COMPLETE" : "NO NETWORKS",
+                sizeof(s_snapshot.last_scan_result));
+    } else {
+        strlcpy(s_snapshot.last_scan_result, esp_err_to_name(result),
+                sizeof(s_snapshot.last_scan_result));
+    }
+    s_snapshot.scan_generation++;
+    s_snapshot.scan_in_progress = false;
+    unlock();
+}
+
+static void perform_wifi_scan(void)
+{
+    memset(s_scan_records, 0, sizeof(s_scan_records));
+    uint16_t record_count = WIFI_SCAN_RECORD_LIMIT;
+    esp_err_t result = ensure_wifi_initialized();
+    if (result == ESP_OK) result = esp_wifi_start();
+    if (result == ESP_OK) {
+        lock();
+        s_wifi_started = true;
+        s_snapshot.radio_active = true;
+        s_radio_started_us = esp_timer_get_time();
+        unlock();
+        const wifi_scan_config_t config = {
+            .show_hidden = false,
+            .scan_type = WIFI_SCAN_TYPE_ACTIVE,
+            .scan_time.active = {.min = 80, .max = 180},
+        };
+        result = esp_wifi_scan_start(&config, true);
+        if (result == ESP_OK) {
+            result = esp_wifi_scan_get_ap_records(&record_count, s_scan_records);
+        }
+    }
+
+    lock();
+    if (s_wifi_started) {
+        (void)esp_wifi_stop();
+        const int64_t interval_us = esp_timer_get_time() - s_radio_started_us;
+        s_snapshot.cumulative_radio_active_ms += (uint64_t)(interval_us / 1000);
+        s_snapshot.current_radio_active_ms = 0;
+        s_snapshot.radio_active = false;
+        s_wifi_started = false;
+        ESP_LOGI(TAG, "Wi-Fi scan radio interval ended: duration_ms=%" PRId64,
+                 interval_us / 1000);
+    }
+    unlock();
+    finish_scan(result, s_scan_records, result == ESP_OK ? record_count : 0);
 }
 
 static void perform_ntp_sync(void)
@@ -705,8 +818,16 @@ static void service_task(void *argument)
     while (true) {
         const int64_t now = esp_timer_get_time();
         bool run_sync = false;
+        bool run_scan = false;
         lock();
-        if (s_start_requested && !s_wifi_started) {
+        if (s_scan_requested && !s_wifi_started) {
+            s_scan_requested = false;
+            s_snapshot.scan_in_progress = true;
+            strlcpy(s_snapshot.last_scan_result, "SCANNING",
+                    sizeof(s_snapshot.last_scan_result));
+            run_scan = true;
+        }
+        if (!run_scan && s_start_requested && !s_wifi_started) {
             s_start_requested = false;
             esp_err_t result = start_radio();
             if (result != ESP_OK) {
@@ -757,6 +878,7 @@ static void service_task(void *argument)
             s_idle_deadline_us = 0;
         }
         unlock();
+        if (run_scan) perform_wifi_scan();
         if (run_sync) perform_ntp_sync();
         vTaskDelay(pdMS_TO_TICKS(SERVICE_TICK_MS));
     }
@@ -784,6 +906,8 @@ esp_err_t network_service_init(bool nvs_ready)
             sizeof(s_snapshot.last_sync_result));
     strlcpy(s_snapshot.last_sync_source, "NONE",
             sizeof(s_snapshot.last_sync_source));
+    strlcpy(s_snapshot.last_scan_result, "NOT RUN",
+            sizeof(s_snapshot.last_scan_result));
     s_snapshot.credential_store_ready = s_nvs_ready;
     s_snapshot.credential_store_encrypted = network_service_credentials_are_encrypted();
     if (s_snapshot.credential_store_encrypted) {
