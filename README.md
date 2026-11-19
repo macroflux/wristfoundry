@@ -6,6 +6,10 @@ scrolling launcher, app lifecycle, hardware telemetry, power-aware display and
 radio behavior, on-watch Wi-Fi provisioning, NTP time synchronization backed by
 the hardware RTC, and an optional bounded BLE scanner example.
 
+**[Read the Phase One build story](https://rethinkingtheworld.com/wristfoundry-esp32-smartwatch-framework-phase-one/)**
+for the project background, hardware bring-up, framework design, power lessons,
+and the path to this first public release candidate.
+
 This repository is a clean public extraction. It has its own history and does
 not contain factory images, private product apps, device backups, generated
 build trees, saved credentials, or private BLE features.
@@ -23,9 +27,11 @@ The extracted baseline comes from firmware exercised on physical hardware:
 - Wi-Fi provisioning service and NTP-to-RTC implementation
 - bounded BLE advertisement scanning
 
-The public repository itself must be rebuilt and revalidated on a clean device
-before its first release. Successful NTP against a real access point and the
-on-watch keyboard flow remain hardware acceptance tests.
+The public development profile has also been built, flashed, and revalidated on
+the physical watch. Wi-Fi scanning and selection, keyboard entry and dismissal,
+timezone selection, navigation stress, and the display dim/off lifecycle pass.
+Successful NTP against a real access point and secure-profile credential
+persistence remain hardware acceptance tests for the first tagged release.
 
 ## Security boundary
 
