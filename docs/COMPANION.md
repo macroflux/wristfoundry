@@ -6,6 +6,7 @@ welcome view, a device dashboard, and explicit, acknowledged service actions.
 This contribution is a **draft, hardware-unverified implementation** until the
 physical acceptance checks below pass. Build/test evidence is recorded in
 `COMPANION_VALIDATION.md`; do not infer passing builds from the presence of CI.
+Rendered screens are collected in [Companion UI review](COMPANION_UI_REVIEW.md).
 
 ## Build and run (Windows x64)
 
