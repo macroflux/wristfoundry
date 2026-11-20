@@ -32,6 +32,8 @@
 #include "sdkconfig.h"
 #include "watch_ui.h"
 #include "time_sync_service.h"
+#include "usb_sleep_policy.h"
+#include "hal/usb_serial_jtag_ll.h"
 
 #define WRISTFOUNDRY_VERSION "0.1.0"
 #define HOME_APPS_GPIO GPIO_NUM_0
@@ -79,6 +81,13 @@ static uint8_t home_key_release_ticks;
 RTC_DATA_ATTR static uint32_t retained_boot_count;
 
 static void enter_battery_light_sleep(void);
+
+static bool usb_tether_blocks_sleep(void)
+{
+    bool present = true;
+    const esp_err_t result = board_services_usb_power_present(&present);
+    return wf_usb_blocks_sleep(result == ESP_OK, present);
+}
 
 static const char *display_state_name(void)
 {
@@ -345,13 +354,7 @@ static void process_power_key_events(void)
             if (++power_key_release_ticks >= POWER_KEY_RELEASE_TICKS) {
                 power_key_press_latched = false;
                 power_key_release_ticks = 0;
-                bool usb_power_present = true;
-                const bool usb_host_connected = usb_serial_jtag_is_connected();
-                const esp_err_t usb_result =
-                    board_services_usb_power_present(&usb_power_present);
-                const bool usb_guard_active = usb_host_connected &&
-                                              (usb_result != ESP_OK ||
-                                               usb_power_present);
+                const bool usb_guard_active = usb_tether_blocks_sleep();
                 if (!screen_awake && !usb_guard_active) {
                     ESP_LOGI(TAG, "PWR released without USB host: entering sleep immediately");
                     enter_battery_light_sleep();
@@ -371,12 +374,8 @@ static void process_power_key_events(void)
     power_key_release_ticks = 0;
     ESP_LOGI(TAG, "GPIO10 PWR press latched: one AMOLED toggle");
     if (screen_awake) {
-        bool usb_power_present = true;
-        const bool usb_host_connected = usb_serial_jtag_is_connected();
-        const esp_err_t usb_result = board_services_usb_power_present(&usb_power_present);
-        set_sleep_status(usb_host_connected &&
-                                 (usb_result != ESP_OK || usb_power_present)
-                             ? "SLEEP BLOCKED: USB HOST"
+        set_sleep_status(usb_tether_blocks_sleep()
+                             ? "SLEEP BLOCKED: VBUS"
                              : "SLEEP: ARMED");
     }
     set_screen_awake(!screen_awake);
@@ -443,6 +442,8 @@ static bool set_touch_input_enabled(bool enabled)
 
 static void enter_battery_light_sleep(void)
 {
+    /* All manual callers, including the PWR-release and power-test paths. */
+    if (usb_tether_blocks_sleep()) return;
     if (WRISTFOUNDRY_POWER_TEST_MODE == POWER_TEST_NORMAL) {
         time_sync_service_cancel("LIGHT SLEEP");
         network_service_force_off("LIGHT SLEEP");
@@ -467,6 +468,17 @@ static void enter_battery_light_sleep(void)
         return;
     }
 
+    /* A sleeping S3 cannot enumerate native USB. Poll only VBUS once a second
+     * while remaining in the low-power state between checks. No display/radio
+     * wake on these timer ticks. Measurement modes retain their original sleep. */
+    const bool poll_usb = WRISTFOUNDRY_POWER_TEST_MODE == POWER_TEST_NORMAL;
+    if (poll_usb && esp_sleep_enable_timer_wakeup(1000000) != ESP_OK) {
+        gpio_wakeup_disable(PWR_WAKE_GPIO);
+        esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
+        ESP_LOGE(TAG, "Could not arm battery USB-attach polling; sleep deferred");
+        return;
+    }
+
     board_health_t before_sleep;
     board_services_read(&before_sleep);
 
@@ -486,9 +498,24 @@ static void enter_battery_light_sleep(void)
     const int64_t sleep_started_us = esp_timer_get_time();
     ESP_LOGI(TAG, "Entering light sleep on battery; short-press PWR to wake (GPIO10 high)");
     gpio_intr_disable(PWR_WAKE_GPIO);
-    result = esp_light_sleep_start();
+    /* Drop D+ before sleeping so a later attachment is enumerated only after
+     * the CPU/PHY is awake. Restore the pad on every exit, including errors. */
+    usb_serial_jtag_ll_phy_enable_pad(false);
+    bool usb_wake = false;
+    esp_sleep_wakeup_cause_t wake_cause = ESP_SLEEP_WAKEUP_UNDEFINED;
+    do {
+        if (usb_tether_blocks_sleep()) {
+            usb_wake = true;
+            result = ESP_OK;
+            break;
+        }
+        result = esp_light_sleep_start();
+        wake_cause = esp_sleep_get_wakeup_cause();
+    } while (poll_usb && result == ESP_OK && wake_cause == ESP_SLEEP_WAKEUP_TIMER &&
+             gpio_get_level(PWR_WAKE_GPIO) == 0);
+    usb_serial_jtag_ll_phy_enable_pad(true);
+    if (poll_usb) esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
     const int64_t sleep_duration_us = esp_timer_get_time() - sleep_started_us;
-    const esp_sleep_wakeup_cause_t wake_cause = esp_sleep_get_wakeup_cause();
 
     gpio_wakeup_disable(PWR_WAKE_GPIO);
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
@@ -550,6 +577,10 @@ static void enter_battery_light_sleep(void)
              lvgl_suspended ? "RESTORED" : "UNCHANGED", before_sleep.battery_mv,
              after_sleep.battery_mv);
 
+    if (usb_wake) {
+        ESP_LOGI(TAG, "VBUS attached: USB restored; AMOLED remains off");
+        return;
+    }
     show_sleep_result(sleep_duration_us);
     /* The forced refresh above completes while brightness is still zero, so
        wake reveals the new result rather than the pre-sleep frame. */
@@ -609,14 +640,14 @@ static void health_task(void *argument)
             board_health_t health;
             board_services_read(&health);
             const bool usb_host_connected = usb_serial_jtag_is_connected();
-            const bool usb_guard_active = usb_host_connected && health.usb_present;
+            const bool usb_guard_active = usb_tether_blocks_sleep();
 
             if (WRISTFOUNDRY_POWER_TEST_MODE == POWER_TEST_NORMAL &&
                 !screen_awake && health.pmu_online) {
                 if (usb_guard_active) {
                     if (!usb_sleep_guard_reported) {
                         ESP_LOGI(TAG,
-                                 "USB host and power connected: keeping native serial/recovery active; "
+                                 "VBUS present or unreadable: keeping native serial/recovery active; "
                                  "AMOLED remains off without light sleep");
                         usb_sleep_guard_reported = true;
                     }
@@ -944,6 +975,7 @@ void app_main(void)
         ESP_ERROR_CHECK(time_sync_service_init(
             network_service_credentials_are_encrypted()));
         ESP_ERROR_CHECK(companion_service_init());
+        ESP_LOGI(TAG, "Companion USB protocol v1 ready (normal mode)");
     }
 
     ESP_LOGI(TAG, "AMOLED ready: %ld x %ld",

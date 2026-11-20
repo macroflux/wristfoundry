@@ -3,6 +3,7 @@
 #include "../main/companion_frame.h"
 #include "../main/timezone_rules.h"
 #include "../main/companion_policy.h"
+#include "../main/usb_sleep_policy.h"
 
 int main(void)
 {
@@ -36,6 +37,10 @@ int main(void)
     assert(!wf_command_needs_awake("device.get"));
     assert(!wf_command_needs_awake("wifi.configure"));
     assert(!wf_command_needs_awake("time.set"));
+    assert(wf_usb_blocks_sleep(true, true)); /* VBUS before enumeration */
+    assert(wf_usb_blocks_sleep(false, false)); /* PMU failure fails awake */
+    assert(wf_usb_blocks_sleep(false, true));
+    assert(!wf_usb_blocks_sleep(true, false)); /* unplug preserves sleep */
     puts("companion frame/rule tests passed");
     return 0;
 }

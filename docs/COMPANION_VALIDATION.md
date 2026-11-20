@@ -1,5 +1,45 @@
 # Companion validation record
 
+## Hardware preparation follow-up (2026-11-20)
+
+User observations: the Windows app launches; native USB produced Code 43 while
+the watch was asleep. Waking the watch and reconnecting exposed a serial port
+and a selectable candidate, but the protocol handshake timed out. The user
+restored backup firmware and has not flashed companion-enabled firmware.
+These observations do not establish a desktop protocol defect.
+
+The existing private recovery set was located and verified: 16 contiguous
+2 MiB chunks cover 32 MiB, all matching the recorded SHA-256 manifest. Binary
+inspection found the legacy provisioning task marker and no v1 frame-prefix or
+companion-service marker. The matching legacy source tree has no companion
+implementation. This supports the expected protocol mismatch; a byte-for-byte
+readback of the currently running device has not been performed. No backup,
+credential-bearing contents, or device identifiers are included here.
+
+The normal-mode branch includes companion_service in CMake and initializes it
+after network/time services with ESP_ERROR_CHECK. A non-secret startup marker
+now explicitly reports protocol v1 ready. Native USB Serial/JTAG console and
+desktop framing agree on RS + WF1 + JSON + LF, protocol version 1.
+
+The sleep follow-up centralizes a VBUS guard at every manual sleep entry,
+including the PWR-release path, and rechecks before sleeping. VBUS protection
+does not depend on successful host enumeration. PMU read failure fails awake.
+The optional IDF automatic-sleep connection guard is requested in defaults;
+it is conditional on PM being enabled and does not replace the manual guard.
+Normal battery mode still uses light sleep, with a one-second timer checking
+VBUS while display, touch, and radios remain asleep/off. D+ is detached during
+sleep and restored on exit so USB attach can enumerate after wake. USB attach
+keeps the AMOLED off. This adds periodic battery wake work: current impact and
+Windows re-enumeration are not yet measured or hardware-verified.
+
+Local full build remains blocked during ESP-IDF tool activation by Windows
+error 623; local C syntax checks pass. A development-only manual CI option was
+added so hardware preparation can build without running the secure profile.
+New firmware has not been flashed. Real startup, handshake/dashboard, RTC
+readback, screen-off USB and unplug/reconnect acceptance remain pending explicit
+flash approval and physical testing. Wi-Fi configuration requires locally
+provided credentials and has not been tested.
+
 Updated 2026-11-20. Implementation is published on
 `feat/wristfoundry-companion` in [draft PR #1](https://github.com/macroflux/wristfoundry/pull/1).
 Base: `5b910a02e6301694d0dfcc8ccff71f334d13f12f`.
