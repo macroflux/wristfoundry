@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -56,7 +57,7 @@ void main(){
     model.navigate(4);await tester.pumpAndSettle(const Duration(milliseconds:250));await capture(tester,'07-demo-apps');
     expect(find.text('Install app · unavailable'),findsOneWidget);
     model.navigate(5);await tester.pumpAndSettle();await capture(tester,'08-demo-diagnostics');
-    await model.disconnect(lost:true);await tester.pumpAndSettle();
+    unawaited(model.disconnect(lost:true));await tester.pumpAndSettle();
     expect(find.textContaining('Connection lost.'),findsOneWidget);
     await capture(tester,'09-disconnected');
     expect(tester.takeException(),isNull);
