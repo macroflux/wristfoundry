@@ -1,3 +1,4 @@
+#include "companion_service.h"
 #include <inttypes.h>
 #include <stdio.h>
 
@@ -636,6 +637,7 @@ static void health_task(void *argument)
                         network_service_get_snapshot(&network);
                         ble_radar_service_get_snapshot(&ble);
                         time_sync_service_get_snapshot(&sync);
+                        companion_service_ui_tick();
                         watch_ui_update(&health, display_state_name(), last_wake_cause,
                                         light_sleep_count, last_light_sleep_us,
                                         &network, &ble, &sync);
@@ -940,6 +942,7 @@ void app_main(void)
         ESP_ERROR_CHECK(network_service_init(nvs_result == ESP_OK));
         ESP_ERROR_CHECK(time_sync_service_init(
             network_service_credentials_are_encrypted()));
+        ESP_ERROR_CHECK(companion_service_init());
     }
 
     ESP_LOGI(TAG, "AMOLED ready: %ld x %ld",

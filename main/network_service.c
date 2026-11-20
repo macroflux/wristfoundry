@@ -1,3 +1,4 @@
+#include "timezone_rules.h"
 #include "network_service.h"
 
 #include <ctype.h>
@@ -9,8 +10,8 @@
 #include <time.h>
 
 #include "board_services.h"
-#include "driver/usb_serial_jtag.h"
-#include "driver/usb_serial_jtag_vfs.h"
+
+
 #include "esp_check.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -32,7 +33,7 @@
 #define IDLE_RADIO_TIMEOUT_MS 15000
 #define NTP_TIMEOUT_MS 12000
 #define SERVICE_TICK_MS 100
-#define PROVISION_LINE_MAX 520
+
 #define WIFI_SCAN_RECORD_LIMIT 24
 
 static const char *TAG = "network";
@@ -218,6 +219,64 @@ esp_err_t network_service_clear_configuration(void)
     set_state_locked(NETWORK_STATE_OFF, "NOT PROVISIONED");
     unlock();
     return ESP_OK;
+}
+
+static esp_err_t rtc_from_epoch(time_t epoch)
+{
+    struct tm local;
+    localtime_r(&epoch, &local);
+    return board_services_set_rtc_local((uint16_t)(local.tm_year + 1900),
+        (uint8_t)(local.tm_mon + 1), (uint8_t)local.tm_mday,
+        (uint8_t)local.tm_hour, (uint8_t)local.tm_min, (uint8_t)local.tm_sec);
+}
+
+esp_err_t network_service_set_time_utc(int64_t epoch)
+{
+    if (!s_lock) return ESP_ERR_INVALID_STATE;
+    if (epoch < 1704067200LL || epoch > 4102444799LL) return ESP_ERR_INVALID_ARG;
+    lock();
+    if (s_sync_requested || s_snapshot.sync_in_progress) { unlock(); return ESP_ERR_INVALID_STATE; }
+    esp_err_t result = rtc_from_epoch((time_t)epoch);
+    if (result == ESP_OK) {
+        const struct timeval value = {.tv_sec = (time_t)epoch, .tv_usec = 0};
+        if (settimeofday(&value, NULL) != 0) result = ESP_FAIL;
+    }
+    unlock();
+    return result;
+}
+
+esp_err_t network_service_set_timezone(const char *timezone)
+{
+    if (!s_lock) return ESP_ERR_INVALID_STATE;
+    if (!wf_timezone_supported(timezone)) return ESP_ERR_INVALID_ARG;
+    lock();
+    if (s_sync_requested || s_snapshot.sync_in_progress) { unlock(); return ESP_ERR_INVALID_STATE; }
+    char previous[64];
+    const char *old = getenv("TZ");
+    strlcpy(previous, old ? old : "UTC0", sizeof(previous));
+    setenv("TZ", timezone, 1);
+    tzset();
+    time_t now = time(NULL);
+    /* Existing RTC stores local wall time. If UTC is not established yet,
+     * timezone selection takes effect on the next explicit PC/manual/NTP set. */
+    esp_err_t result = now >= 1704067200LL ? rtc_from_epoch(now) : ESP_OK;
+#if CONFIG_NVS_ENCRYPTION
+    if (result == ESP_OK && s_nvs_ready) {
+        nvs_handle_t handle = 0;
+        result = nvs_open("network", NVS_READWRITE, &handle);
+        if (result == ESP_OK) result = nvs_set_str(handle, "timezone", timezone);
+        if (result == ESP_OK) result = nvs_commit(handle);
+        if (handle) nvs_close(handle);
+    }
+#endif
+    if (result == ESP_OK) strlcpy(s_snapshot.timezone, timezone, sizeof(s_snapshot.timezone));
+    else {
+        setenv("TZ", previous, 1);
+        tzset();
+        if (now >= 1704067200LL) (void)rtc_from_epoch(now);
+    }
+    unlock();
+    return result;
 }
 
 static void wifi_event(void *argument, esp_event_base_t base, int32_t id, void *data)
@@ -675,143 +734,6 @@ static void perform_ntp_sync(void)
     }
 }
 
-static int hex_value(char value)
-{
-    if (value >= '0' && value <= '9') return value - '0';
-    value = (char)tolower((unsigned char)value);
-    if (value >= 'a' && value <= 'f') return value - 'a' + 10;
-    return -1;
-}
-
-static bool decode_hex(const char *input, char *output, size_t output_size)
-{
-    const size_t length = strlen(input);
-    if ((length & 1U) != 0 || length / 2 >= output_size) return false;
-    for (size_t index = 0; index < length; index += 2) {
-        const int high = hex_value(input[index]);
-        const int low = hex_value(input[index + 1]);
-        if (high < 0 || low < 0) return false;
-        output[index / 2] = (char)((high << 4) | low);
-    }
-    output[length / 2] = '\0';
-    return true;
-}
-
-static void provisioning_task(void *argument)
-{
-    (void)argument;
-    char line[PROVISION_LINE_MAX];
-    setvbuf(stdin, NULL, _IONBF, 0);
-    while (true) {
-        if (fgets(line, sizeof(line), stdin) == NULL) {
-            clearerr(stdin);
-            vTaskDelay(pdMS_TO_TICKS(50));
-            continue;
-        }
-        char *newline = strpbrk(line, "\r\n");
-        if (newline != NULL) *newline = '\0';
-        if (strcmp(line, "WFNET STATUS") == 0) {
-            lock();
-            const int64_t now = esp_timer_get_time();
-            const uint64_t current_radio_ms = s_wifi_started
-                                                  ? (uint64_t)((now - s_radio_started_us) / 1000)
-                                                  : 0;
-            printf("WFNET_ACK STATUS configured=%s encrypted=%s "
-                   "state=%s radio=%s leases=%" PRIu32 " radio_ms=%" PRIu64
-                   " total_radio_ms=%" PRIu64 " connect_result=%s sync_result=%s\n",
-                   s_snapshot.credentials_present ? "yes" : "no",
-                   s_snapshot.credential_store_encrypted ? "yes" : "no",
-                   network_service_state_name(s_snapshot.state),
-                   s_wifi_started ? "on" : "off", s_snapshot.lease_count,
-                   current_radio_ms, s_snapshot.cumulative_radio_active_ms,
-                   s_snapshot.last_connect_result, s_snapshot.last_sync_result);
-            unlock();
-            fflush(stdout);
-            continue;
-        }
-        if (strcmp(line, "WFNET CONNECT") == 0) {
-            network_service_request_manual_connect();
-            printf("WFNET_ACK CONNECT result=REQUESTED\n");
-            fflush(stdout);
-            continue;
-        }
-        if (strcmp(line, "WFNET SYNC") == 0) {
-            network_service_request_time_sync();
-            printf("WFNET_ACK SYNC result=REQUESTED\n");
-            fflush(stdout);
-            continue;
-        }
-        if (strcmp(line, "WFNET OFF") == 0) {
-            network_service_force_off("USB RADIO OFF");
-            printf("WFNET_ACK OFF result=ESP_OK\n");
-            fflush(stdout);
-            continue;
-        }
-        if (strcmp(line, "CTIME AUTO") == 0) {
-            const bool requested = time_sync_service_request_auto();
-            printf("CTIME_ACK AUTO result=%s\n", requested ? "REQUESTED" : "BUSY");
-            fflush(stdout);
-            continue;
-        }
-        if (strcmp(line, "CTIME STATUS") == 0) {
-            time_sync_snapshot_t sync;
-            time_sync_service_get_snapshot(&sync);
-            printf("CTIME_ACK STATUS state=%s active=%s method=%s status=%s "
-                   "last_source=%s last_local=%s\n",
-                   time_sync_state_name(sync.state), sync.active ? "yes" : "no",
-                   sync.method, sync.status,
-                   sync.last_source, sync.last_local[0] ? sync.last_local : "-");
-            fflush(stdout);
-            continue;
-        }
-        if (strcmp(line, "CTIME CANCEL") == 0) {
-            time_sync_service_cancel("USB CANCELED");
-            printf("CTIME_ACK CANCEL result=OK\n");
-            fflush(stdout);
-            continue;
-        }
-        if (strcmp(line, "WFNET CLEAR") == 0) {
-            esp_err_t result = network_service_clear_configuration();
-            printf("WFNET_ACK CLEAR result=%s\n", esp_err_to_name(result));
-            fflush(stdout);
-            continue;
-        }
-        if (strncmp(line, "WFNET SET ", 10) == 0) {
-            char *ssid_hex = line + 10;
-            char *password_hex = strchr(ssid_hex, ' ');
-            char *timezone_hex = password_hex != NULL ? strchr(password_hex + 1, ' ') : NULL;
-            if (password_hex == NULL || timezone_hex == NULL) {
-                printf("WFNET_ACK SET result=INVALID_FORMAT\n");
-                fflush(stdout);
-                secure_zero(line, sizeof(line));
-                continue;
-            }
-            *password_hex++ = '\0';
-            *timezone_hex++ = '\0';
-            char ssid[33], password[65], timezone[64];
-            const bool password_ok = strcmp(password_hex, "-") == 0
-                                         ? (password[0] = '\0', true)
-                                         : decode_hex(password_hex, password,
-                                                      sizeof(password));
-            if (!decode_hex(ssid_hex, ssid, sizeof(ssid)) || !password_ok ||
-                !decode_hex(timezone_hex, timezone, sizeof(timezone)) ||
-                ssid[0] == '\0' || timezone[0] == '\0') {
-                printf("WFNET_ACK SET result=INVALID_VALUE\n");
-                fflush(stdout);
-                secure_zero(password, sizeof(password));
-                secure_zero(line, sizeof(line));
-                continue;
-            }
-            esp_err_t result = network_service_save_configuration(ssid, password, timezone);
-            secure_zero(password, sizeof(password));
-            secure_zero(line, sizeof(line));
-            printf("WFNET_ACK SET result=%s\n", esp_err_to_name(result));
-            fflush(stdout);
-        }
-    }
-    vTaskDelete(NULL);
-}
-
 static void service_task(void *argument)
 {
     (void)argument;
@@ -889,19 +811,6 @@ esp_err_t network_service_init(bool nvs_ready)
     s_nvs_ready = nvs_ready;
     s_lock = xSemaphoreCreateMutex();
     if (s_lock == NULL) return ESP_ERR_NO_MEM;
-    usb_serial_jtag_driver_config_t usb_config = {
-        .tx_buffer_size = 2048,
-        .rx_buffer_size = 1024,
-    };
-    esp_err_t usb_result = usb_serial_jtag_driver_install(&usb_config);
-    if (usb_result == ESP_OK || usb_result == ESP_ERR_INVALID_STATE) {
-        usb_serial_jtag_vfs_use_driver();
-        usb_serial_jtag_vfs_set_rx_line_endings(ESP_LINE_ENDINGS_CRLF);
-        usb_serial_jtag_vfs_set_tx_line_endings(ESP_LINE_ENDINGS_CRLF);
-    } else {
-        ESP_LOGW(TAG, "USB provisioning input unavailable: %s",
-                 esp_err_to_name(usb_result));
-    }
     strlcpy(s_snapshot.last_sync_result, "NEVER",
             sizeof(s_snapshot.last_sync_result));
     strlcpy(s_snapshot.last_sync_source, "NONE",
@@ -922,8 +831,7 @@ esp_err_t network_service_init(bool nvs_ready)
                 sizeof(s_snapshot.last_connect_result));
         ESP_LOGI(TAG, "Persistent Wi-Fi credentials are disabled; provisioning is RAM-only");
     }
-    if (xTaskCreate(service_task, "network_service", 6144, NULL, 5, NULL) != pdPASS ||
-        xTaskCreate(provisioning_task, "wifi_provision", 6144, NULL, 3, NULL) != pdPASS) {
+    if (xTaskCreate(service_task, "network_service", 6144, NULL, 5, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
     ESP_LOGI(TAG,
