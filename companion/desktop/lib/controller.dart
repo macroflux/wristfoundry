@@ -145,7 +145,15 @@ class CompanionController extends ChangeNotifier {
     final seq = (value['sequence'] as num).toInt();
     if (seq <= _sequence) return false;
     _sequence = seq;
-    snapshot = value;
+    final battery = value['battery_percent'];
+    snapshot = {
+      ...value,
+      'battery_percent': battery is num && battery.isFinite && battery >= 0 && battery <= 100 ? battery : null,
+      'charging': value['charging'] is bool ? value['charging'] : null,
+      'rtc_local': value['rtc_local'] is String ? value['rtc_local'] : '',
+      'networks': (value['networks'] is List ? value['networks'] as List : const [])
+          .whereType<Map>().where((ap) => ap['ssid'] is String && ap['rssi'] is num && ap['secured'] is bool).take(8).toList(),
+    };
     receivedAt = DateTime.now();
     _notify();
     return true;

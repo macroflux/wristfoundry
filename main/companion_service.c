@@ -237,7 +237,10 @@ static void dispatch(char *line)
     cJSON *p = cJSON_GetObjectItemCaseSensitive(q, "params");
     const char *error = NULL;
     cJSON *result = NULL;
-    if (!id || !id[0] || !cmd || !cJSON_IsObject(p)) error = "invalid_argument";
+    int expected_params = cmd && !strcmp(cmd, "wifi.configure") ? 2 :
+        cmd && (!strcmp(cmd, "time.set") || !strcmp(cmd, "timezone.set") || !strcmp(cmd, "apps.open")) ? 1 : 0;
+    if (!id || !id[0] || !cmd || !cJSON_IsObject(p) ||
+        cJSON_GetArraySize(q) != 4 || cJSON_GetArraySize(p) != expected_params) error = "invalid_argument";
     else if (!cJSON_IsNumber(v) || v->valuedouble != 1) error = "unsupported_version";
     else if (!strcmp(cmd, "hello")) { result = hello(); s_identified = true; }
     else if (!s_identified) error = "handshake_required";

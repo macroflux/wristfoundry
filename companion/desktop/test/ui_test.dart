@@ -42,9 +42,13 @@ void main(){
     expect(model.exportDiagnostics(),isNot(contains('password-not-exported')));
     await capture(tester,'04-demo-wifi');
     model.navigate(2);await tester.pumpAndSettle();await capture(tester,'05-demo-time');
+    model.navigate(3);await tester.pumpAndSettle(const Duration(milliseconds:250));await capture(tester,'06-demo-settings');
+    model.navigate(4);await tester.pumpAndSettle(const Duration(milliseconds:250));await capture(tester,'07-demo-apps');
+    expect(find.text('Install app · unavailable'),findsOneWidget);
+    model.navigate(5);await tester.pumpAndSettle();await capture(tester,'08-demo-diagnostics');
     await model.disconnect(lost:true);await tester.pumpAndSettle();
     expect(find.textContaining('Connection lost.'),findsOneWidget);
-    await capture(tester,'06-disconnected');
+    await capture(tester,'09-disconnected');
     expect(tester.takeException(),isNull);
   });
 }

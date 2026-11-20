@@ -185,10 +185,11 @@ bool time_sync_service_request_auto(void)
     s_last_request_ms = now;
     s_start_pending = true;
     s_start_canceled = false;
+    s_snapshot.active = true;
     unlock();
     const sync_command_t command = COMMAND_START;
     bool queued = xQueueSend(s_commands, &command, 0) == pdTRUE;
-    if (!queued) { lock(); s_start_pending = false; unlock(); }
+    if (!queued) { lock(); s_start_pending = false; s_snapshot.active = false; unlock(); }
     return queued;
 }
 
@@ -199,6 +200,7 @@ esp_err_t time_sync_service_set_utc(int64_t epoch, const char *source)
     if (s_snapshot.active || s_start_pending) { unlock(); return ESP_ERR_INVALID_STATE; }
     /* Reserve the existing sync owner while the shared network/RTC API writes. */
     s_snapshot.active = true;
+    s_snapshot.state = TIME_SYNC_IDLE;
     unlock();
     esp_err_t result = network_service_set_time_utc(epoch);
     char local_text[24] = "";
@@ -212,6 +214,7 @@ esp_err_t time_sync_service_set_utc(int64_t epoch, const char *source)
     s_snapshot.active = false;
     s_snapshot.generation++;
     s_snapshot.state = result == ESP_OK ? TIME_SYNC_SUCCESS : TIME_SYNC_FAILED;
+    strlcpy(s_snapshot.method, source, sizeof(s_snapshot.method));
     strlcpy(s_snapshot.status, result == ESP_OK ? "Time set / RTC updated" : "Time set failed", sizeof(s_snapshot.status));
     strlcpy(s_snapshot.detail, result == ESP_OK ? source : esp_err_to_name(result), sizeof(s_snapshot.detail));
     if (result == ESP_OK) {

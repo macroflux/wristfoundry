@@ -67,6 +67,11 @@ void main(){
     });final c=CompanionController(d);await c.refresh();await c.connect();
     expect(c.errorCode,'incompatible_firmware');c.dispose();
   });
+  test('unsupported envelope version shows incompatible firmware error',()async{
+    final d=Discovery()..ports=[watchA]..factory=()=>ChangedReply((q){q['v']=2;return q;});
+    final c=CompanionController(d);await c.refresh();await c.connect();
+    expect(c.stage,ConnectionStage.error);expect(c.errorCode,'unsupported_version');c.dispose();
+  });
   test('stale snapshots rejected; unsupported writes never sent',()async{
     final d=Discovery()..ports=[watchA]..factory=()=>ChangedReply((q){
       if(q['result'] is Map && q['result']['sequence']!=null) q['result']['sequence']=1;return q;

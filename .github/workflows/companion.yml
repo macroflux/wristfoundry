@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: companion-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   contract:
     runs-on: ubuntu-latest

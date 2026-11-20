@@ -113,7 +113,7 @@ class _CompanionAppState extends State<CompanionApp> {
       const SizedBox(height: 12), const Text('Plug in your watch with a USB data cable.\nSelect a port, then connect to verify its identity.', style: TextStyle(color: muted, height: 1.6)),
       const SizedBox(height: 26),
       Row(children: [const Icon(Icons.usb, size: 17, color: cyan), const SizedBox(width: 8),
-        Expanded(child: Text(c.connecting ? _stageLabel(c.stage) : c.devices.where((p) => p.candidate).isEmpty
+        Expanded(child: Text(c.connecting ? _stageLabel(c.stage) : c.stage == ConnectionStage.discovering ? 'Looking for USB devices…' : c.devices.where((p) => p.candidate).isEmpty
           ? 'No candidate watches detected' : '${c.devices.where((p) => p.candidate).length} candidate device(s) detected',
           style: const TextStyle(fontSize: 12, color: muted))),
         TextButton.icon(onPressed: c.connecting ? null : c.refresh,
