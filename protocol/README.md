@@ -77,7 +77,7 @@ Desktop treats unsupported capabilities as unavailable, not placeholder success.
 `malformed`, `frame_too_large`, `invalid_argument`, `unsupported_version`,
 `handshake_required`, `unsupported_command`, `busy`, `not_configured`,
 `storage_unavailable`, `rtc_write_failed`, `rtc_or_storage_failed`, and
-`ui_unavailable` are firmware codes. Parser errors with no valid ID use an empty
+`ui_unavailable`, and `display_asleep` are firmware codes. Parser errors with no valid ID use an empty
 ID and do not complete any pending host operation. The host additionally reports
 `timeout`, `write_failed`, `disconnected`, `port_in_use`, `access_denied`,
 `wrong_device`, `identity_changed`, `invalid_snapshot`, and `incompatible_firmware`.

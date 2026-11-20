@@ -1,5 +1,7 @@
 #include "companion_service.h"
 #include "companion_frame.h"
+#include "companion_policy.h"
+#include <stdatomic.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +32,12 @@ static unsigned s_sequence;
 static char s_ui_action[48];
 static bool s_ui_pending;
 static cJSON *s_ui_apps;
+static atomic_bool s_display_awake = ATOMIC_VAR_INIT(true);
+
+void companion_service_set_display_awake(bool awake)
+{
+    atomic_store(&s_display_awake, awake);
+}
 
 static void wipe(void *data, size_t n)
 {
@@ -135,6 +143,7 @@ static cJSON *snapshot(void)
     board_services_read(&h);
     cJSON *r = cJSON_CreateObject();
     cJSON_AddNumberToObject(r, "sequence", ++s_sequence);
+    cJSON_AddBoolToObject(r, "display_awake", atomic_load(&s_display_awake));
     cJSON_AddNumberToObject(r, "uptime_ms", (double)(esp_timer_get_time() / 1000));
     if (h.pmu_online && h.battery_present && h.battery_percent >= 0)
         cJSON_AddNumberToObject(r, "battery_percent", h.battery_percent);
@@ -244,6 +253,7 @@ static void dispatch(char *line)
     else if (!cJSON_IsNumber(v) || v->valuedouble != 1) error = "unsupported_version";
     else if (!strcmp(cmd, "hello")) { result = hello(); s_identified = true; }
     else if (!s_identified) error = "handshake_required";
+    else if (!atomic_load(&s_display_awake) && wf_command_needs_awake(cmd)) error = "display_asleep";
     else if (!strcmp(cmd, "device.get") || !strcmp(cmd, "diagnostics.get")) result = snapshot();
     else if (!strcmp(cmd, "settings.get")) {
         result = cJSON_CreateObject();

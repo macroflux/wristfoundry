@@ -72,7 +72,7 @@ class CompanionController extends ChangeNotifier {
         return;
       }
       if (!ready) {
-        if (selected != null && !found.any((p) => p.port == selected!.port)) selected = null;
+        if (selected != null && !found.any((p) => p.port == selected!.port && p.usbId == selected!.usbId)) selected = null;
         final candidates = found.where((p) => p.candidate).toList();
         if (selected == null && candidates.length == 1) selected = candidates.single;
         if (stage == ConnectionStage.discovering) stage = candidates.isEmpty ? ConnectionStage.idle : ConnectionStage.candidates;
@@ -235,6 +235,7 @@ String describeFailure(String? code) => switch(code) {
   'wrong_device' || 'identity_changed' => 'This port did not identify as the selected WristFoundry. Select the correct watch.',
   'unsupported_version' || 'incompatible_firmware' => 'Firmware protocol is incompatible. See docs/COMPANION.md for the manual upgrade route.',
   'busy' => 'The watch service is busy. Let scanning or synchronization finish, then retry.',
+  'display_asleep' || 'ui_unavailable' => 'Wake the watch with its power button, then retry. USB actions do not override its display-off power policy.',
   'rtc_write_failed' || 'rtc_or_storage_failed' => 'The watch could not update its RTC or storage. Time was not confirmed. Check device diagnostics.',
   'not_configured' => 'Configure a Wi-Fi network on the watch first.',
   'discovery_failed' => 'USB discovery is unavailable. Check the Windows runner build and refresh.',

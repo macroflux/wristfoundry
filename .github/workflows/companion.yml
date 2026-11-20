@@ -1,6 +1,7 @@
 name: Companion
 on:
   push:
+    branches: [main]
     paths: ['companion/**', 'protocol/**', 'tests/**', '.github/workflows/companion.yml']
   pull_request:
   workflow_dispatch:

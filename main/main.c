@@ -283,6 +283,7 @@ static void set_screen_awake(bool awake)
                            : bsp_display_backlight_off();
     if (result == ESP_OK) {
         screen_awake = awake;
+        companion_service_set_display_awake(awake);
         screen_dimmed = false;
         if (awake && WRISTFOUNDRY_POWER_TEST_MODE == POWER_TEST_NORMAL) {
             watch_ui_note_activity();

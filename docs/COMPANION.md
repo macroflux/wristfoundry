@@ -64,6 +64,12 @@ DTR/RTS disabled. Initial driver line state at open must still be tested on the
 physical native USB hardware. Ambiguous third-party USB/UART adapters are not
 claimed reset-safe.
 
+Wake the watch using its power button before starting Wi-Fi scanning,
+connecting, NTP or app navigation. The existing display owner reports awake
+state to the companion; these commands reject with `display_asleep` while off.
+Reads and offline configuration remain available. USB never wakes the AMOLED
+or bypasses the existing radio shutdown policy.
+
 ## Shared services and boundaries
 
 `companion_service` is the sole serial reader, replacing the old text/hex Wi-Fi

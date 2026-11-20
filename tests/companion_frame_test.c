@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "../main/companion_frame.h"
 #include "../main/timezone_rules.h"
+#include "../main/companion_policy.h"
 
 int main(void)
 {
@@ -28,6 +29,13 @@ int main(void)
     assert(wf_timezone_supported("EST5EDT,M3.2.0,M11.1.0"));
     assert(!wf_timezone_supported("EST5")); /* no DST-erasing fallback */
     assert(!wf_timezone_supported(NULL));
+    assert(wf_command_needs_awake("wifi.scan"));
+    assert(wf_command_needs_awake("wifi.connect"));
+    assert(wf_command_needs_awake("ntp.sync"));
+    assert(wf_command_needs_awake("apps.open"));
+    assert(!wf_command_needs_awake("device.get"));
+    assert(!wf_command_needs_awake("wifi.configure"));
+    assert(!wf_command_needs_awake("time.set"));
     puts("companion frame/rule tests passed");
     return 0;
 }
