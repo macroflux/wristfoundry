@@ -1,6 +1,10 @@
 # Companion development flash review
 
-Prepared 2026-11-20; **not flashed**. Approval is required before writing.
+Historical preparation from 2026-11-20. The user subsequently ran this command
+in their own PowerShell and reported a successful write and companion use.
+The automated agent could not open the serial port and did not perform that
+write or a post-flash binary readback. Later firmware changes require their own
+reviewed images and explicit flash approval.
 
 Source revision: `14eb94856fe815bf8a0c7a3714c00a76fc984359`, normal power mode 0,
 ESP-IDF 5.5.5, ESP32-S3, development profile. The

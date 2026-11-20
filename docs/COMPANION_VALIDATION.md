@@ -23,6 +23,19 @@ wakes the display; unplug starts a fresh battery inactivity interval. Manual
 PWR blanking remains available. The companion reports the revised policy.
 This display-timeout change has not yet been flashed or hardware-validated.
 
+Final tethered-display revision:
+`c1de44d95941b1eb7d7345ebad651f9248def1a2`. Its
+[development-only run](https://github.com/macroflux/wristfoundry/actions/runs/44810966121)
+passed the C framing/power-policy test, full ESP-IDF 5.5.5 build, development
+configuration assertions and artifact upload; the secure job was skipped.
+Downloaded ZIP and all image SHA-256 values match the artifact manifest, the
+partition table matches the existing baseline, and the application contains
+the new USB display policy and direct wake markers. Esptool validated its
+internal image checksum/hash. The [app-only review](COMPANION_USB_AWAKE_REVIEW.md)
+records exact image hash, offset, update command and rollback to the user-tested
+companion firmware. The new application has not been flashed; no additional
+hardware results are claimed for it.
+
 ### Earlier automated flash attempts: blocked before writing
 
 The user approved the development flash and subsequent hardware tests. The
@@ -91,7 +104,9 @@ the local host-C executable could not link in this environment. The four
 firmware C syntax checks passed, and the host-C test passed in the run above.
 Earlier desktop/schema results below remain tied to their stated revisions.
 
-Updated 2026-11-20. Implementation is published on
+## Initial CI record (before user hardware testing)
+
+Recorded 2026-11-20. Implementation is published on
 `feat/wristfoundry-companion` in [draft PR #1](https://github.com/macroflux/wristfoundry/pull/1).
 Base: `5b910a02e6301694d0dfcc8ccff71f334d13f12f`.
 
@@ -174,5 +189,6 @@ remains documented. USB identity is a compatibility check, not cryptographic
 authentication; credentials use the local USB link and the existing firmware
 storage policy.
 
-No merge, release publication, hardware flashing or eFuse provisioning was
-performed. CI only builds/tests/packages and uploads review artifacts.
+No merge, release publication or eFuse provisioning was performed. CI only
+builds/tests/packages and uploads review artifacts. The subsequent user-run
+development flash and user-reported results are recorded at the top.

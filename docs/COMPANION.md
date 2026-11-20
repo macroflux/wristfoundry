@@ -40,6 +40,13 @@ is created by the workflow.
 
 ## Connect and recover
 
+Normal tethered policy: confirmed USB power wakes the screen and pauses
+automatic dim/off. The CPU/USB sleep guard also remains active. Unplugging
+starts a fresh battery inactivity interval. PWR can still deliberately blank
+the screen, which retains the existing radio-off policy. This display behavior
+is implemented after the user's initial successful `14eb948` hardware test;
+check the validation record for the exact build currently under test.
+
 Use a USB **data** cable. Discovery enumerates metadata every two seconds; it
 does not open ports. Native Espressif USB Serial/JTAG devices are prioritized;
 other ports require **Show other serial ports** and explicit selection. A port
