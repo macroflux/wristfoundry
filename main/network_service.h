@@ -55,6 +55,10 @@ esp_err_t network_service_save_configuration(const char *ssid,
                                               const char *password,
                                               const char *timezone);
 esp_err_t network_service_clear_configuration(void);
+/* POSIX timezone whitelist, independent of credentials; no fixed-offset DST shortcut. */
+esp_err_t network_service_set_timezone(const char *timezone);
+/* UTC seconds, 2024..2099. RTC write must succeed before system clock changes. */
+esp_err_t network_service_set_time_utc(int64_t epoch);
 bool network_service_credentials_are_encrypted(void);
 esp_err_t network_service_acquire(const char *owner);
 void network_service_release(const char *owner);

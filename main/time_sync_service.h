@@ -28,6 +28,7 @@ typedef struct {
 
 esp_err_t time_sync_service_init(bool persist_history);
 bool time_sync_service_request_auto(void);
+esp_err_t time_sync_service_set_utc(int64_t epoch, const char *source);
 void time_sync_service_cancel(const char *reason);
 void time_sync_service_get_snapshot(time_sync_snapshot_t *snapshot);
 bool time_sync_service_can_sleep(void);

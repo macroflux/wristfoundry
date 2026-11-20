@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      development_only:
+        description: Build only the normal development profile for hardware preparation
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -44,6 +49,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Check framing and USB sleep policy
+        run: cc -std=c11 -Wall -Wextra -Werror tests/companion_frame_test.c -o /tmp/companion-frame-test && /tmp/companion-frame-test
 
       - name: Build with ESP-IDF 5.5.5
         uses: espressif/esp-idf-ci-action@e6f5c74232b1ccd4c97ed641f1e48553853f1fd5 # v1.2.0
@@ -88,6 +96,7 @@ jobs:
             build/wristfoundry.cdx.json
 
   build-secure:
+    if: ${{ !inputs.development_only }}
     name: Encrypted-NVS firmware
     runs-on: ubuntu-latest
     steps:

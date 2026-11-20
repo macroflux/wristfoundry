@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wristfoundry.dev/protocol/v1/response.schema.json",
+  "type": "object",
+  "required": ["v"],
+  "properties": {"v": {"const": 1}, "id": {"type": "string", "maxLength": 48}, "error": {"type": "object", "required": ["code"], "properties": {"code": {"type": "string", "pattern": "^[a-z_]{1,48}$"}}, "additionalProperties": false}, "result": {}, "event": {"const": "device.status"}, "data": {"type": "object"}},
+  "oneOf": [
+    {"required": ["id", "result"], "not": {"anyOf": [{"required": ["error"]}, {"required": ["event"]}]}},
+    {"required": ["id", "error"], "not": {"anyOf": [{"required": ["result"]}, {"required": ["event"]}]}},
+    {"required": ["event", "data"], "not": {"anyOf": [{"required": ["id"]}, {"required": ["result"]}, {"required": ["error"]}]}}
+  ]
+}

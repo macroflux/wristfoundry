@@ -71,10 +71,70 @@ a normal-profile release bundle and create a draft GitHub release for human
 approval. Secure-profile binaries are never placed in public release bundles.
 See [CI/CD policy](docs/CI_CD.md).
 
+Manual CI runs can select `development_only` for hardware preparation; this
+skips the secure-profile job. The Companion workflow separately checks the
+protocol and builds/tests/packages the Flutter Windows application.
+
 ## Add an app
 
 Define a `wf_app_t`, implement the lifecycle callbacks you need, and register it
 before `wf_app_manager_finish_registration()`. See [App development](docs/APP_DEVELOPMENT.md).
+
+## Windows companion (draft)
+
+The official [WristFoundry Companion](docs/COMPANION.md) in
+`companion/desktop` provides a Flutter Windows Welcome / Connect flow, USB
+identity/capability handshake, device dashboard, Wi-Fi, UTC/RTC time setup,
+timezone/NTP, supported settings, compiled app controls and redacted diagnostics.
+Try the clearly labeled demo mode without hardware. Applications are compiled
+into watch firmware: individual app installation is unavailable. Firmware
+flashing is a separate, deliberate operation outside the companion.
+
+### Run on Windows
+
+Download the full Windows x64 runtime ZIP from a successful
+[Companion workflow run](https://github.com/macroflux/wristfoundry/actions/workflows/companion.yml),
+extract it, and run `wristfoundry_companion.exe`. Keep the EXE,
+`flutter_windows.dll`, and `data` directory together. Flutter is not required
+on the user's PC; the unsigned portable build may require Microsoft's Visual
+C++ x64 redistributable. This draft is not a signed installer or published release.
+Source-build requirements and commands are in [Companion setup](docs/COMPANION.md).
+
+Connect the watch with a USB data cable, select its port, and connect explicitly.
+The watch must run companion-enabled firmware from this branch. Older firmware
+can expose a COM port yet time out because it does not implement the protocol.
+USB enumeration errors such as Windows Code 43 occur before the handshake;
+the older sleeping firmware required waking/reconnecting to expose its port.
+
+### Tethered power behavior
+
+The latest development implementation keeps the processor/USB available and
+pauses automatic display dim/off on confirmed USB power. Attachment wakes the
+display; unplugging starts a fresh battery inactivity interval. PWR can still
+deliberately blank the display and stop radios. Battery light sleep checks for
+USB attachment once a second; its additional current impact is not yet measured.
+
+### Validation and review
+
+The user reports successfully flashing development revision `14eb948`, connecting
+the real companion, and using time/timezone synchronization. The subsequent
+stay-awake display update, revision `c1de44d`, passes the development build and
+C power-policy tests; applying it and validating the new display behavior on
+the watch are not yet confirmed. Automated serial access on the development PC
+returns access denied, while the user's own PowerShell flash succeeded.
+
+Windows analysis, 23 Flutter tests, release compilation and runtime packaging
+passed at the revisions recorded in the [validation record](docs/COMPANION_VALIDATION.md).
+Physical RTC readback comparison, systematic unplug/reconnect tests, Wi-Fi/NTP,
+clean-PC distribution testing and power measurements remain acceptance work.
+The companion remains under review in [draft PR #1](https://github.com/macroflux/wristfoundry/pull/1)
+and has not been merged to `main`.
+
+- [Rendered UI gallery](docs/COMPANION_UI_REVIEW.md): actual Flutter renders
+  using explicitly labeled demo data and fixture discovery.
+- [App-only USB-awake update review](docs/COMPANION_USB_AWAKE_REVIEW.md): exact
+  image checksum, write offset, preparation and rollback details.
+- [Companion setup and physical acceptance](docs/COMPANION.md).
 
 ## Project status
 

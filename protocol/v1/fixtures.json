@@ -1,0 +1,22 @@
+{
+  "requests": [
+    {"v":1,"id":"1","cmd":"hello","params":{}},
+    {"v":1,"id":"2","cmd":"device.get","params":{}},
+    {"v":1,"id":"3","cmd":"time.set","params":{"epoch_utc":1795185000}},
+    {"v":1,"id":"4","cmd":"timezone.set","params":{"timezone":"EST5EDT,M3.2.0,M11.1.0"}},
+    {"v":1,"id":"5","cmd":"wifi.configure","params":{"ssid":"example-open-network","password":""}},
+    {"v":1,"id":"6","cmd":"apps.open","params":{"app_id":"settings"}}
+  ],
+  "responses": [
+    {"v":1,"id":"1","result":{"product":"WristFoundry","device_id":"example-only","model":"Waveshare ESP32-S3 AMOLED 2.06","firmware":"0.1.0","capabilities":["device.get"],"app_packages":false}},
+    {"v":1,"id":"3","error":{"code":"rtc_write_failed"}},
+    {"v":1,"id":"5","result":{"status":"accepted"}},
+    {"v":1,"event":"device.status","data":{"sequence":1,"wifi_state":"OFF","battery_percent":null,"charging":null}}
+  ],
+  "invalid_requests": [
+    {"v":2,"id":"1","cmd":"hello","params":{}},
+    {"v":1,"id":"","cmd":"hello","params":{}},
+    {"v":1,"id":"1","cmd":"time.set","params":{"epoch_utc":1.2}},
+    {"v":1,"id":"1","cmd":"timezone.set","params":{"timezone":"EST5"}}
+  ]
+}

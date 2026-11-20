@@ -1,0 +1,6 @@
+.dart_tool/
+.flutter-plugins-dependencies
+build/
+windows/flutter/ephemeral/
+windows/flutter/generated_*
+review-captures/

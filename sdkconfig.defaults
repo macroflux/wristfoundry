@@ -17,6 +17,10 @@ CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
 
 # The board's USB-C connector is wired directly to native ESP32-S3 USB.
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_USJ_ENABLE_USB_SERIAL_JTAG=y
+# Guard automatic light sleep if PM is enabled in a downstream configuration.
+# Manual esp_light_sleep_start() is separately guarded by VBUS in main.c.
+CONFIG_USJ_NO_AUTO_LS_ON_CONNECTION=y
 
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 CONFIG_FREERTOS_HZ=1000
