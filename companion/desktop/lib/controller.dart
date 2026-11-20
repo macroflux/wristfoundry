@@ -270,7 +270,7 @@ class CompanionController extends ChangeNotifier {
     ++_epoch;
     final client = _client;
     _client = null;
-    await _events?.cancel();
+    final events = _events;
     _events = null;
     snapshot = {};
     identity = {};
@@ -286,6 +286,7 @@ class CompanionController extends ChangeNotifier {
     demo = false;
     _notify();
     try {
+      await events?.cancel();
       await client?.close();
     } catch (_) {
       /* Port may already be removed. */
