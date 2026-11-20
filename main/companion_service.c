@@ -152,7 +152,8 @@ static cJSON *snapshot(void)
     else cJSON_AddNullToObject(r, "charging");
     cJSON_AddBoolToObject(r, "rtc_online", h.rtc_online);
     cJSON_AddBoolToObject(r, "rtc_valid", h.rtc_valid);
-    char rtc[24] = "";
+    // Accommodate the full storage-type ranges as well as valid RTC values.
+    char rtc[32] = "";
     if (h.rtc_online && h.rtc_valid)
         snprintf(rtc, sizeof(rtc), "%04u-%02u-%02u %02u:%02u:%02u",
                  h.year, h.month, h.day, h.hour, h.minute, h.second);
