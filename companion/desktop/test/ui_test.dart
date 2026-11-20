@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wristfoundry_companion/controller.dart';
 import 'package:wristfoundry_companion/main.dart';
@@ -10,18 +11,27 @@ import 'controller_test.dart' show Discovery,watchA,watchB;
 Future<void> capture(WidgetTester tester,String name)async{
   await tester.pumpAndSettle();
   final boundary=tester.renderObject<RenderRepaintBoundary>(find.byKey(captureKey));
+  debugPrint('Rendering UI capture: $name');
+  final image=boundary.toImageSync(pixelRatio:1);
   await tester.runAsync(()async{
-    final image=await boundary.toImage(pixelRatio:1);
     final bytes=await image.toByteData(format:ui.ImageByteFormat.png);
     final directory=Directory('review-captures')..createSync(recursive:true);
     File('${directory.path}/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
     image.dispose();
   });
+  debugPrint('Saved rendered UI capture: $name');
 }
 void main(){
   testWidgets('welcome, discovery picker, demo dashboard and acknowledged forms render',(tester)async{
     tester.view.physicalSize=const Size(1440,1000);tester.view.devicePixelRatio=1;
     addTearDown(tester.view.resetPhysicalSize);addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.runAsync(()async{
+      final fontFile=File(r'C:\Windows\Fonts\segoeui.ttf');
+      if(fontFile.existsSync()) {
+        final loader=FontLoader('Segoe UI')..addFont(Future.value(ByteData.sublistView(fontFile.readAsBytesSync())));
+        await loader.load();
+      }
+    });
     final discovery=Discovery(),c=CompanionController(Discovery());c.dispose();
     final model=CompanionController(discovery);
     await tester.pumpWidget(CompanionApp(controller:model,startDiscovery:false));

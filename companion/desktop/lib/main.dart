@@ -359,10 +359,11 @@ class WatchPreview extends StatelessWidget {
       boxShadow:const[BoxShadow(color:Color(0x2056DBF4),blurRadius:45,spreadRadius:5)]),
     child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       const Text('WRISTFOUNDRY',style:TextStyle(color:cyan,fontSize:8,letterSpacing:1.6)),const SizedBox(height:27),
-      Text(clock,style:TextStyle(color:text,fontSize:clock.length>5 ? 24:32,fontWeight:FontWeight.w300,letterSpacing:-1)),
+      FittedBox(fit:BoxFit.scaleDown,alignment:Alignment.centerLeft,
+        child:Text(clock,maxLines:1,style:TextStyle(color:text,fontSize:clock.length>5 ? 24:32,fontWeight:FontWeight.w300,letterSpacing:-1))),
       const SizedBox(height:6),Text(connected ? 'DEVICE RTC' : 'READY TO CONNECT',style:const TextStyle(color:muted,fontSize:7,letterSpacing:1.4)),
       const Spacer(),Container(padding:const EdgeInsets.all(9),decoration:BoxDecoration(color:raised,borderRadius:BorderRadius.circular(10)),
-        child:Row(children:[const Icon(Icons.memory,size:12,color:cyan),const SizedBox(width:6),Text(battery==null ? 'USB / v1' : 'BATTERY  $battery%',style:const TextStyle(color:cyan,fontSize:7))])),
+        child:Row(children:[const Icon(Icons.memory,size:12,color:cyan),const SizedBox(width:6),Expanded(child:Text(battery==null ? 'USB / v1' : 'BATTERY  $battery%',maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:cyan,fontSize:7)))])),
     ]),
   )));
 }
