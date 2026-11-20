@@ -590,6 +590,26 @@ static void enter_battery_light_sleep(void)
 
 static void update_inactivity_lifecycle(void)
 {
+    static int64_t next_usb_check_us;
+    static bool tethered;
+    const int64_t now_us = esp_timer_get_time();
+    if (now_us >= next_usb_check_us) {
+        bool vbus = false;
+        const esp_err_t result = board_services_usb_power_present(&vbus);
+        const bool attached = wf_usb_keeps_display_awake(result == ESP_OK, vbus);
+        if (attached && !tethered) {
+            ESP_LOGI(TAG, "USB power attached: display inactivity timeout suspended");
+            set_screen_awake(true);
+        }
+        tethered = attached;
+        next_usb_check_us = now_us + 1000000;
+    }
+    if (tethered) {
+        /* The PWR button can still explicitly blank the screen. Automatic
+         * dim/off is paused; unplug starts a fresh battery idle interval. */
+        lifecycle_activity_us = now_us;
+        return;
+    }
     const int64_t activity_us = watch_ui_last_activity_us();
     if (activity_us > lifecycle_activity_us) {
         lifecycle_activity_us = activity_us;

@@ -258,7 +258,7 @@ static void dispatch(char *line)
     else if (!strcmp(cmd, "device.get") || !strcmp(cmd, "diagnostics.get")) result = snapshot();
     else if (!strcmp(cmd, "settings.get")) {
         result = cJSON_CreateObject();
-        cJSON_AddStringToObject(result, "policy", "10s dim / 25s off; radios stop at display off");
+        cJSON_AddStringToObject(result, "policy", "USB: stays awake (PWR can blank display); battery: 10s dim / 25s off; radios stop at display off");
         cJSON_AddBoolToObject(result, "brightness_set", false);
         cJSON_AddBoolToObject(result, "sleep_set", false);
     } else if (!strcmp(cmd, "wifi.scan")) {

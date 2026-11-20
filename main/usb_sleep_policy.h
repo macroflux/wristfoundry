@@ -7,3 +7,10 @@ static inline bool wf_usb_blocks_sleep(bool vbus_read_ok, bool vbus_present)
 {
     return !vbus_read_ok || vbus_present;
 }
+
+/* Only confirmed external power suppresses the display inactivity timeout.
+ * A PMU read failure must not hold full brightness indefinitely on battery. */
+static inline bool wf_usb_keeps_display_awake(bool vbus_read_ok, bool vbus_present)
+{
+    return vbus_read_ok && vbus_present;
+}

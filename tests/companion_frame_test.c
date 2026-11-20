@@ -41,6 +41,10 @@ int main(void)
     assert(wf_usb_blocks_sleep(false, false)); /* PMU failure fails awake */
     assert(wf_usb_blocks_sleep(false, true));
     assert(!wf_usb_blocks_sleep(true, false)); /* unplug preserves sleep */
+    assert(wf_usb_keeps_display_awake(true, true));
+    assert(!wf_usb_keeps_display_awake(true, false));
+    assert(!wf_usb_keeps_display_awake(false, true)); /* no bright battery drain on PMU error */
+    assert(!wf_usb_keeps_display_awake(false, false));
     puts("companion frame/rule tests passed");
     return 0;
 }

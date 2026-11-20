@@ -42,3 +42,11 @@ connection guard is requested too, but does not guard manual sleep calls.
 
 Before release, define numeric budgets from repeatable measurements on the
 actual battery. Until then, runtime claims are intentionally omitted.
+
+Tethered usability follow-up: confirmed VBUS also suspends automatic display
+dim/off and wakes the display on attachment. VBUS is sampled once a second;
+unplugging starts a fresh normal battery idle interval. Explicit PWR-button
+blanking still works, with radios stopped by the existing display-off owner.
+PMU read failure does not force full display brightness on battery. This display
+policy change is separate from the already prepared CPU/USB guard and needs its
+own development-build flash and hardware check.

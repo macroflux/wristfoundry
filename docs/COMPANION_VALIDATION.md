@@ -2,7 +2,28 @@
 
 ## Hardware preparation follow-up (2026-11-20)
 
-### Approved flash attempt: blocked before writing
+### User-run development flash and successful companion use
+
+After automated attempts could not open the serial port, the user ran the
+prepared development flash command in their own PowerShell and reported that
+it wrote successfully. The prepared images were from revision `14eb948` and
+the checksummed development-only artifact described below. The agent did not
+observe that external flash output or perform a post-flash binary readback.
+
+The user then reported that the real companion works and that time setting,
+timezone selection and clock synchronization work. These are user-observed
+hardware results, not CI/demo results. The automated direct protocol probe
+still could not open the port, so independently captured startup markers,
+RTC readback comparison and timed USB screen-off/unplug/reconnect acceptance
+remain pending. No Wi-Fi credentials have been supplied or configured here.
+
+The requested follow-up suppresses automatic display dim/off on confirmed USB
+power, in addition to the CPU light-sleep guard already in `14eb948`. USB attach
+wakes the display; unplug starts a fresh battery inactivity interval. Manual
+PWR blanking remains available. The companion reports the revised policy.
+This display-timeout change has not yet been flashed or hardware-validated.
+
+### Earlier automated flash attempts: blocked before writing
 
 The user approved the development flash and subsequent hardware tests. The
 image checksums and pinned USB identity were checked again; the selected native
