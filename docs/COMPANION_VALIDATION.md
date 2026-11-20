@@ -40,6 +40,21 @@ readback, screen-off USB and unplug/reconnect acceptance remain pending explicit
 flash approval and physical testing. Wi-Fi configuration requires locally
 provided credentials and has not been tested.
 
+Prepared implementation revision: `14eb94856fe815bf8a0c7a3714c00a76fc984359`.
+The [development-only run](https://github.com/macroflux/wristfoundry/actions/runs/44805589926)
+passed its C framing/sleep-policy tests, full ESP-IDF 5.5.5 build, development
+configuration assertions, checksum generation and upload. The encrypted-NVS
+job was explicitly skipped. The artifact ZIP digest and all three image
+checksums were verified locally. Esptool validated application and bootloader
+image checksums/hashes. The binary contains the v1 prefix and startup-ready
+marker; its partition table exactly matches the backup table. This is build
+evidence, not successful physical startup. See [flash review](COMPANION_FLASH_REVIEW.md).
+
+Local Python contract execution was blocked by a missing jsonschema module;
+the local host-C executable could not link in this environment. The four
+firmware C syntax checks passed, and the host-C test passed in the run above.
+Earlier desktop/schema results below remain tied to their stated revisions.
+
 Updated 2026-11-20. Implementation is published on
 `feat/wristfoundry-companion` in [draft PR #1](https://github.com/macroflux/wristfoundry/pull/1).
 Base: `5b910a02e6301694d0dfcc8ccff71f334d13f12f`.

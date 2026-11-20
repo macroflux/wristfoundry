@@ -25,9 +25,20 @@ power path. Tests must also cover failed Wi-Fi, absent SD card, audio amp idle,
 sensor polling, and repeated wake cycles.
 
 Companion USB open/reset behavior and incremental power impact are unmeasured.
-No new permanent radio lease is taken. The existing USB host guard and
+No new permanent radio lease is taken. The VBUS guard and
 display-off radio cancellation remain authoritative; see `COMPANION.md` for
 the separate physical acceptance checklist.
+
+The hardware-debugging follow-up blocks every manual light-sleep entry while
+VBUS is present (including before enumeration), and fails awake on PMU read
+errors. Normal battery sleep detaches the USB pad and wakes once a second to
+check VBUS. On attachment it restores the pad for fresh enumeration and leaves
+the display off. On battery-only timer ticks it returns directly to light sleep
+without restoring display/touch/radios. GPIO10 still wakes the normal UI. This
+periodic wake work has not been measured; preserving the previous numeric sleep
+current or battery runtime is not claimed. Explicit power-test modes retain
+their original uninterrupted sleep behavior. The optional automatic-sleep IDF
+connection guard is requested too, but does not guard manual sleep calls.
 
 Before release, define numeric budgets from repeatable measurements on the
 actual battery. Until then, runtime claims are intentionally omitted.

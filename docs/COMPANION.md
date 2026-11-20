@@ -135,8 +135,11 @@ exists. Extension names and prerequisites are documented in `protocol/README.md`
   display-off navigation, wake, radio ownership and LVGL responsiveness.
 - Measure active, screen-off and battery/sleep current with companion connected,
   unplugged and reconnected. RX waits at most 50 ms; status/heartbeat cadence is
-  two seconds, with no permanent new radio lease. Numeric power impact remains
-  unmeasured. Confirm existing battery light-sleep behavior is preserved.
+  two seconds, with no permanent new radio lease. Normal battery light sleep
+  now polls VBUS every second with the USB pad detached, then restores USB on
+  attachment without turning on the display. Measure this added wake overhead;
+  numeric power impact remains unmeasured. Confirm battery sleep and USB
+  re-enumeration on physical hardware, including attachment while asleep.
 - Inspect the full portable ZIP on a clean Windows x64 PC without an SDK. Verify
   runtime assets, labels, text scaling, narrow windows, and report redaction.
 
