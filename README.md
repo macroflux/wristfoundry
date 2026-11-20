@@ -76,6 +76,16 @@ See [CI/CD policy](docs/CI_CD.md).
 Define a `wf_app_t`, implement the lifecycle callbacks you need, and register it
 before `wf_app_manager_finish_registration()`. See [App development](docs/APP_DEVELOPMENT.md).
 
+## Windows companion (draft)
+
+The official [WristFoundry Companion](docs/COMPANION.md) in
+`companion/desktop` provides a Flutter Windows Welcome / Connect flow, USB
+identity/capability handshake, device dashboard, Wi-Fi, UTC/RTC time setup,
+timezone/NTP, supported settings, compiled app controls and redacted diagnostics.
+Try the clearly labeled demo mode without hardware. Read the
+[validation record](docs/COMPANION_VALIDATION.md) before treating this draft
+as hardware-supported. Individual app installation and flashing are unavailable.
+
 ## Project status
 
 This is the 0.1.0 release candidate. Hardware support is expanded in
