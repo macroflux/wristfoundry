@@ -32,4 +32,3 @@ Its BSD license is retained at
 `companion/desktop/THIRD_PARTY_FLUTTER_LICENSE` and included in companion bundles.
 The native USB bridge is WristFoundry code using Windows APIs; it adds no serial
 redistributable DLL.
-

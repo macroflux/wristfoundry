@@ -825,6 +825,20 @@ esp_err_t network_service_init(bool nvs_ready)
             ESP_LOGW(TAG, "Encrypted network configuration unavailable: %s",
                      esp_err_to_name(result));
         }
+#if CONFIG_NVS_ENCRYPTION
+        /* Timezone can be saved independently before credentials exist. */
+        nvs_handle_t timezone_handle;
+        if (nvs_open("network", NVS_READONLY, &timezone_handle) == ESP_OK) {
+            char timezone[64];
+            size_t size = sizeof(timezone);
+            if (nvs_get_str(timezone_handle, "timezone", timezone, &size) == ESP_OK &&
+                wf_timezone_supported(timezone)) {
+                strlcpy(s_snapshot.timezone, timezone, sizeof(s_snapshot.timezone));
+                setenv("TZ", timezone, 1); tzset();
+            }
+            nvs_close(timezone_handle);
+        }
+#endif
     } else {
         strlcpy(s_snapshot.timezone, "NOT SET", sizeof(s_snapshot.timezone));
         strlcpy(s_snapshot.last_connect_result, "VOLATILE ONLY",

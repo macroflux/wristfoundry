@@ -23,6 +23,8 @@ int main(void)
     assert(wf_frame_push(&frame, '\r') == 0);
     assert(wf_frame_push(&frame, '\n') == 1);
     assert(!strcmp(frame.data, "a")); /* oversized tail cannot be dispatched */
+    assert(wf_frame_push(&frame, 0) == 0);
+    assert(wf_frame_push(&frame, '\n') == -1); /* embedded NUL cannot truncate JSON */
     assert(wf_timezone_supported("EST5EDT,M3.2.0,M11.1.0"));
     assert(!wf_timezone_supported("EST5")); /* no DST-erasing fallback */
     assert(!wf_timezone_supported(NULL));

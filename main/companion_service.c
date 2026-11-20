@@ -97,6 +97,34 @@ static const char *string(cJSON *o, const char *key, size_t max)
     return cJSON_IsString(v) && strlen(v->valuestring) <= max ? v->valuestring : NULL;
 }
 
+/* Bound cJSON recursion before allocation/parsing. Raw controls and embedded
+ * NUL are not valid protocol content; escaped JSON controls remain supported. */
+static bool shallow_json(const char *text)
+{
+    unsigned depth = 0;
+    bool quoted = false, escaped = false;
+    for (const unsigned char *p = (const unsigned char *)text; *p; ++p) {
+        if (*p < 32) return false;
+        if (escaped) { escaped = false; continue; }
+        if (quoted && *p == '\\') { escaped = true; continue; }
+        if (*p == '"') { quoted = !quoted; continue; }
+        if (!quoted && (*p == '{' || *p == '[')) { if (++depth > 8) return false; }
+        if (!quoted && (*p == '}' || *p == ']')) { if (!depth) return false; --depth; }
+    }
+    return !quoted && !depth;
+}
+
+static bool unique_keys(cJSON *o)
+{
+    cJSON *a;
+    cJSON_ArrayForEach(a, o) {
+        for (cJSON *b = a->next; b; b = b->next)
+            if (a->string && b->string && !strcmp(a->string, b->string)) return false;
+        if ((cJSON_IsObject(a) || cJSON_IsArray(a)) && !unique_keys(a)) return false;
+    }
+    return true;
+}
+
 static cJSON *snapshot(void)
 {
     network_snapshot_t n;
@@ -197,9 +225,12 @@ static cJSON *hello(void)
 static void dispatch(char *line)
 {
     if (strncmp(line, WF_PREFIX, 5)) return;
+    if (!shallow_json(line + 5)) { error_reply(NULL, "malformed"); return; }
     const char *end = NULL;
     cJSON *q = cJSON_ParseWithOpts(line + 5, &end, true);
-    if (!q) { error_reply(NULL, "malformed"); return; }
+    if (!q || !cJSON_IsObject(q) || !unique_keys(q)) {
+        wipe_json(q); cJSON_Delete(q); error_reply(NULL, "malformed"); return;
+    }
     const char *id = string(q, "id", 48);
     const char *cmd = string(q, "cmd", 40);
     cJSON *v = cJSON_GetObjectItemCaseSensitive(q, "v");
@@ -243,7 +274,7 @@ static void dispatch(char *line)
         cJSON *epoch = cJSON_GetObjectItemCaseSensitive(p, "epoch_utc");
         esp_err_t e = cJSON_IsNumber(epoch) && epoch->valuedouble >= 1704067200.0 &&
             epoch->valuedouble <= 4102444799.0 && epoch->valuedouble == (double)(int64_t)epoch->valuedouble
-                ? network_service_set_time_utc((int64_t)epoch->valuedouble) : ESP_ERR_INVALID_ARG;
+                ? time_sync_service_set_utc((int64_t)epoch->valuedouble, "USB COMPANION") : ESP_ERR_INVALID_ARG;
         if (e != ESP_OK) error = e == ESP_ERR_INVALID_ARG ? "invalid_argument" : e == ESP_ERR_INVALID_STATE ? "busy" : "rtc_write_failed";
     } else if (!strcmp(cmd, "apps.list")) {
         xSemaphoreTake(s_ui, portMAX_DELAY);

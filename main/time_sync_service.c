@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -19,6 +20,8 @@ static time_sync_snapshot_t s_snapshot;
 static uint32_t s_network_generation;
 static int64_t s_last_request_ms;
 static bool s_persist_history;
+static bool s_start_pending;
+static bool s_start_canceled;
 
 static int64_t now_ms(void) { return esp_timer_get_time() / 1000; }
 static void lock(void) { xSemaphoreTake(s_lock, portMAX_DELAY); }
@@ -137,7 +140,14 @@ static void service_task(void *arg)
     sync_command_t command;
     for (;;) {
         if (xQueueReceive(s_commands, &command, pdMS_TO_TICKS(200)) == pdTRUE) {
-            if (command == COMMAND_START) begin_sync(); else cancel_sync("USER CANCELED");
+            if (command == COMMAND_START) {
+                lock();
+                bool canceled = s_start_canceled;
+                s_start_pending = false;
+                s_start_canceled = false;
+                unlock();
+                if (!canceled) begin_sync();
+            } else cancel_sync("USER CANCELED");
         }
         lock();
         const bool poll = s_snapshot.active && s_snapshot.state == TIME_SYNC_WIFI;
@@ -171,11 +181,47 @@ bool time_sync_service_request_auto(void)
     if (s_commands == NULL) return false;
     lock();
     const int64_t now = now_ms();
-    if (s_snapshot.active || now - s_last_request_ms < 3000) { unlock(); return false; }
+    if (s_snapshot.active || s_start_pending || now - s_last_request_ms < 3000) { unlock(); return false; }
     s_last_request_ms = now;
+    s_start_pending = true;
+    s_start_canceled = false;
     unlock();
     const sync_command_t command = COMMAND_START;
-    return xQueueSend(s_commands, &command, 0) == pdTRUE;
+    bool queued = xQueueSend(s_commands, &command, 0) == pdTRUE;
+    if (!queued) { lock(); s_start_pending = false; unlock(); }
+    return queued;
+}
+
+esp_err_t time_sync_service_set_utc(int64_t epoch, const char *source)
+{
+    if (!s_lock || !source) return ESP_ERR_INVALID_STATE;
+    lock();
+    if (s_snapshot.active || s_start_pending) { unlock(); return ESP_ERR_INVALID_STATE; }
+    /* Reserve the existing sync owner while the shared network/RTC API writes. */
+    s_snapshot.active = true;
+    unlock();
+    esp_err_t result = network_service_set_time_utc(epoch);
+    char local_text[24] = "";
+    if (result == ESP_OK) {
+        time_t now = (time_t)epoch;
+        struct tm local;
+        localtime_r(&now, &local);
+        strftime(local_text, sizeof(local_text), "%Y-%m-%d %H:%M:%S", &local);
+    }
+    lock();
+    s_snapshot.active = false;
+    s_snapshot.generation++;
+    s_snapshot.state = result == ESP_OK ? TIME_SYNC_SUCCESS : TIME_SYNC_FAILED;
+    strlcpy(s_snapshot.status, result == ESP_OK ? "Time set / RTC updated" : "Time set failed", sizeof(s_snapshot.status));
+    strlcpy(s_snapshot.detail, result == ESP_OK ? source : esp_err_to_name(result), sizeof(s_snapshot.detail));
+    if (result == ESP_OK) {
+        s_snapshot.last_success_epoch = epoch;
+        strlcpy(s_snapshot.last_source, source, sizeof(s_snapshot.last_source));
+        strlcpy(s_snapshot.last_local, local_text, sizeof(s_snapshot.last_local));
+    }
+    unlock();
+    if (result == ESP_OK) save_success(source, local_text, epoch);
+    return result;
 }
 
 void time_sync_service_cancel(const char *reason)
@@ -183,6 +229,7 @@ void time_sync_service_cancel(const char *reason)
     if (s_commands == NULL) return;
     lock();
     const bool active = s_snapshot.active;
+    if (s_start_pending) s_start_canceled = true;
     unlock();
     if (!active) return;
     network_service_cancel_time_sync();
@@ -202,7 +249,7 @@ void time_sync_service_get_snapshot(time_sync_snapshot_t *snapshot)
 bool time_sync_service_can_sleep(void)
 {
     if (s_lock == NULL) return true;
-    lock(); const bool inactive = !s_snapshot.active; unlock();
+    lock(); const bool inactive = !s_snapshot.active && !s_start_pending; unlock();
     return inactive;
 }
 

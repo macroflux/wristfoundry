@@ -26,6 +26,7 @@ static inline int wf_frame_push(wf_frame_t *f, unsigned char byte)
         return result;
     }
     if (f->overflow) return 0;
+    if (byte == 0) { f->overflow = true; return 0; }
     if (f->used == WF_REQUEST_MAX) { f->overflow = true; return 0; }
     if (byte != '\r') f->data[f->used++] = (char)byte;
     return 0;

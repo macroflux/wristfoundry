@@ -48,8 +48,9 @@ class CompanionController extends ChangeNotifier {
         _polling = true;
         final epoch = _epoch;
         try {
+          final before = _sequence;
           final s = await _client!.request('device.get');
-          if (epoch == _epoch) _accept(s);
+          if (epoch == _epoch && !_acceptFresh(s, before)) await disconnect(lost: true);
         } catch (_) { if (epoch == _epoch) await disconnect(lost: true); }
         finally { _polling = false; }
       }
@@ -105,7 +106,7 @@ class CompanionController extends ChangeNotifier {
       _client = client;
       _events = client.events.listen((event) {
         if (epoch != _epoch) return;
-        if (event['event'] == 'connection.lost') { unawaited(disconnect(lost: true)); }
+        if (event['event'] == 'connection.lost' && !connecting) { unawaited(disconnect(lost: true)); }
         else if (ready && event['event'] == 'device.status') { _accept(event['data']); }
       });
       stage = ConnectionStage.identifying; _notify();
@@ -150,6 +151,14 @@ class CompanionController extends ChangeNotifier {
     return true;
   }
 
+  bool _acceptFresh(dynamic value, int before) {
+    if (value is! Map<String,dynamic> || value['sequence'] is! num || value['wifi_state'] is! String ||
+        (value['sequence'] as num).toInt() <= before) return false;
+    // An event can carry an even newer snapshot in the same received chunk.
+    _accept(value);
+    return true;
+  }
+
   Future<void> disconnect({bool lost = false}) async {
     ++_epoch;
     final client = _client;
@@ -174,9 +183,10 @@ class CompanionController extends ChangeNotifier {
       if (epoch != _epoch) return false;
       if (cmd == 'apps.list') apps = (result as List).map((a) => Map<String,dynamic>.from(a as Map)).toList();
       if (cmd == 'settings.get') settings = Map<String,dynamic>.from(result as Map);
+      final before = _sequence;
       final fresh = await _client!.request('device.get');
       if (epoch != _epoch) return false;
-      if (!_accept(fresh)) throw const DeviceFailure('invalid_snapshot');
+      if (!_acceptFresh(fresh, before)) throw const DeviceFailure('invalid_snapshot');
       operationMessage = 'Acknowledged by ${demo ? 'demo device' : 'watch'}. Status refreshed.';
       _record('acknowledged');
       return true;
