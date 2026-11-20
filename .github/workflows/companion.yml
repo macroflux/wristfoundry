@@ -48,6 +48,7 @@ jobs:
             companion/desktop/review-captures/*.png
             companion/desktop/lib/*.dart
             companion/desktop/test/*.dart
+            companion/desktop/pubspec.lock
           if-no-files-found: warn
       - run: flutter build windows --release
         id: release

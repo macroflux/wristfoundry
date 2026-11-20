@@ -22,9 +22,18 @@ class WindowsDiscovery implements DeviceDiscovery {
   @override
   Future<List<Candidate>> enumerate() async {
     final ports = await channel.invokeListMethod<dynamic>('enumerate') ?? [];
-    return ports.map((p) => Candidate(p['port'] as String, p['label'] as String,
-        p['usb_id'] as String, p['candidate'] as bool)).toList();
+    return ports
+        .map(
+          (p) => Candidate(
+            p['port'] as String,
+            p['label'] as String,
+            p['usb_id'] as String,
+            p['candidate'] as bool,
+          ),
+        )
+        .toList();
   }
+
   @override
   Future<Transport> open(Candidate device) async {
     try {
@@ -37,7 +46,9 @@ class WindowsDiscovery implements DeviceDiscovery {
 }
 
 class WindowsTransport implements Transport {
-  WindowsTransport() { _timer = Timer.periodic(const Duration(milliseconds: 100), (_) => _read()); }
+  WindowsTransport() {
+    _timer = Timer.periodic(const Duration(milliseconds: 100), (_) => _read());
+  }
   final _bytes = StreamController<Uint8List>();
   late final Timer _timer;
   bool _reading = false;
@@ -48,17 +59,23 @@ class WindowsTransport implements Transport {
     if (_reading || _closed) return;
     _reading = true;
     try {
-      final data = await WindowsDiscovery.channel.invokeMethod<Uint8List>('read');
+      final data = await WindowsDiscovery.channel.invokeMethod<Uint8List>(
+        'read',
+      );
       if (!_closed && data != null && data.isNotEmpty) _bytes.add(data);
     } catch (_) {
       if (!_closed) _bytes.addError(const DeviceFailure('disconnected'));
-    } finally { _reading = false; }
+    } finally {
+      _reading = false;
+    }
   }
+
   @override
   Future<void> write(Uint8List bytes) async {
     if (_closed) throw const DeviceFailure('disconnected');
     await WindowsDiscovery.channel.invokeMethod<void>('write', bytes);
   }
+
   @override
   Future<void> close() async {
     if (_closed) return;

@@ -24,18 +24,36 @@ class WatchZone {
   /// Reject nonexistent spring times and ambiguous autumn times. The UI asks
   /// for UTC in the fold rather than silently choosing the wrong occurrence.
   DateTime wallToUtc(DateTime wall) {
-    final nominal = DateTime.utc(wall.year, wall.month, wall.day, wall.hour, wall.minute, wall.second);
+    final nominal = DateTime.utc(
+      wall.year,
+      wall.month,
+      wall.day,
+      wall.hour,
+      wall.minute,
+      wall.second,
+    );
     final matches = <DateTime>[];
-    for (final offset in {standardHours, if (dst.isNotEmpty) standardHours + 1}) {
+    for (final offset in {
+      standardHours,
+      if (dst.isNotEmpty) standardHours + 1,
+    }) {
       final utc = nominal.subtract(Duration(hours: offset));
       if (offsetAt(utc) == offset) matches.add(utc);
     }
-    if (matches.length != 1) throw const FormatException('DST gap or repeated hour. Select UTC and enter UTC time.');
+    if (matches.length != 1)
+      throw const FormatException(
+        'DST gap or repeated hour. Select UTC and enter UTC time.',
+      );
     return matches.single;
   }
 }
-int _sunday(int y, int m, int ordinal) => 1 + (7 - DateTime.utc(y, m, 1).weekday) % 7 + (ordinal - 1) * 7;
-int _lastSunday(int y, int m) { final last = DateTime.utc(y, m + 1, 0); return last.day - last.weekday % 7; }
+
+int _sunday(int y, int m, int ordinal) =>
+    1 + (7 - DateTime.utc(y, m, 1).weekday) % 7 + (ordinal - 1) * 7;
+int _lastSunday(int y, int m) {
+  final last = DateTime.utc(y, m + 1, 0);
+  return last.day - last.weekday % 7;
+}
 
 const watchZones = [
   WatchZone('UTC', 'UTC0', 0, ''),
