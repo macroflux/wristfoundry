@@ -223,7 +223,7 @@ void main() {
     final d = Discovery()
       ..ports = [watchA]
       ..factory = () => ChangedReply((q) {
-        if (q['id'] == '3') {
+          if ((q['id'] as String).endsWith('-3')) {
           q.remove('result');
           q['error'] = {'code': 'rtc_write_failed'};
         }

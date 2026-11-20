@@ -22,9 +22,12 @@ TX and redirected ESP logging share a mutex. Panic/ROM output may still truncate
 a frame; desktop discards it and requires a new handshake after reconnect.
 
 The desktop permits at most four outstanding requests, uses monotonically
-increasing string IDs per connection, and times out after five seconds. It does
+increasing string IDs with a fresh random session prefix per connection, and
+times out after five seconds. Cached replies from an earlier port session cannot
+complete a new handshake or mutation. It does
 not retry writes automatically. Firmware handles one command at a time; its
-2048-byte driver RX ring is bounded. Host flooding may lose bytes; recovery is
+8192-byte driver RX ring is bounded and accommodates four maximum-size requests.
+Host flooding may lose bytes; recovery is
 disconnect/re-identify. Events carry a monotonically increasing `sequence` per
 boot. A new session resets the desktop sequence gate. Responses for unknown or
 expired IDs are ignored. Pending operations fail on unplug/cancel.

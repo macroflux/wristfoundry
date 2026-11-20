@@ -346,7 +346,7 @@ static void service_task(void *arg)
         int count = usb_serial_jtag_read_bytes(bytes, sizeof(bytes), pdMS_TO_TICKS(50));
         for (int i = 0; i < count; ++i) {
             int state = wf_frame_push(&s_frame, bytes[i]);
-            if (state == 1) dispatch(s_frame.data);
+            if (state == 1 && connected) dispatch(s_frame.data);
             if (state) wipe(s_frame.data, sizeof(s_frame.data));
             if (state == -1) error_reply(NULL, "frame_too_large");
         }
@@ -366,7 +366,7 @@ esp_err_t companion_service_init(void)
     s_tx = xSemaphoreCreateMutex();
     s_ui = xSemaphoreCreateMutex();
     if (!s_tx || !s_ui) return ESP_ERR_NO_MEM;
-    const usb_serial_jtag_driver_config_t config = {.tx_buffer_size = 8192, .rx_buffer_size = 2048};
+    const usb_serial_jtag_driver_config_t config = {.tx_buffer_size = 8192, .rx_buffer_size = 8192};
     usb_serial_jtag_driver_config_t mutable_config = config;
     esp_err_t e = usb_serial_jtag_driver_install(&mutable_config);
     if (e != ESP_OK) return e;

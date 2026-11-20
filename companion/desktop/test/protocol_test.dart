@@ -7,6 +7,7 @@ import 'package:wristfoundry_companion/protocol.dart';
 class Wire implements Transport {
   final input = StreamController<Uint8List>();
   final writes = <Uint8List>[];
+  String get lastId => (jsonDecode(utf8.decode(writes.last).substring(protocolPrefix.length)) as Map)['id'] as String;
   @override
   Stream<Uint8List> get bytes => input.stream;
   @override
@@ -71,7 +72,7 @@ void main() {
       expect(done, false);
       wire.send({
         'v': 1,
-        'id': '1',
+        'id': wire.lastId,
         'result': {'product': 'WristFoundry'},
       });
       expect((await request)['product'], 'WristFoundry');
@@ -85,8 +86,25 @@ void main() {
       p.request('hello'),
       throwsA(isA<DeviceFailure>().having((e) => e.code, 'code', 'timeout')),
     );
-    wire.send({'v': 1, 'id': '1', 'result': {}});
+    wire.send({'v': 1, 'id': wire.lastId, 'result': {}});
     await p.close();
+  });
+  test('new connections do not reuse request IDs from a cached handshake', () async {
+    final first = Wire();
+    final a = ProtocolClient(first);
+    final checkA = expectLater(a.request('hello'), throwsA(isA<DeviceFailure>()));
+    final previous = first.lastId;
+    a.fail(const DeviceFailure('disconnected'));
+    await checkA;
+    await a.close();
+    final second = Wire();
+    final b = ProtocolClient(second);
+    final reply = b.request('hello');
+    expect(second.lastId, isNot(previous));
+    second.send({'v': 1, 'id': previous, 'result': {'product': 'Wrong cached watch'}});
+    second.send({'v': 1, 'id': second.lastId, 'result': {'product': 'WristFoundry'}});
+    expect((await reply)['product'], 'WristFoundry');
+    await b.close();
   });
   test('unsupported version fails outstanding operations', () async {
     final wire = Wire();

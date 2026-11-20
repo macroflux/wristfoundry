@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 const protocolPrefix = '\x1eWF1 ';
@@ -74,6 +75,7 @@ class ProtocolClient {
   final _events = StreamController<Map<String, dynamic>>.broadcast();
   late final StreamSubscription<Uint8List> _subscription;
   int _counter = 0;
+  final String _session = '${DateTime.now().microsecondsSinceEpoch.toRadixString(16)}-${Random.secure().nextInt(0x100000000).toRadixString(16)}';
   bool _closed = false;
   Stream<Map<String, dynamic>> get events => _events.stream;
 
@@ -83,7 +85,7 @@ class ProtocolClient {
   ]) async {
     if (_closed) throw const DeviceFailure('disconnected');
     if (_pending.length >= 4) throw const DeviceFailure('busy');
-    final id = '${++_counter}';
+    final id = '$_session-${++_counter}';
     final wire = Uint8List.fromList(
       utf8.encode(
         '$protocolPrefix${jsonEncode({'v': 1, 'id': id, 'cmd': command, 'params': params})}\n',
