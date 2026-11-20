@@ -2,6 +2,21 @@
 
 ## Hardware preparation follow-up (2026-11-20)
 
+### Approved flash attempt: blocked before writing
+
+The user approved the development flash and subsequent hardware tests. The
+image checksums and pinned USB identity were checked again; the selected native
+USB candidate remained available on the same port. No running companion,
+Python serial monitor, or common flashing process was found. Esptool 4.12.0
+could not open the selected port: Windows returned PermissionError 13 / access
+denied (OS error 5), and esptool exited with code 2 before chip synchronization
+or any flash write. A busy port and other OS/device access problems cannot yet
+be distinguished. No image was written, no backup was restored, and no NVS or
+eFuse operation occurred. Startup, real protocol/dashboard, RTC readback and
+USB sleep/reconnect tests therefore remain unperformed on this build. The next
+step is waking/reconnecting the existing firmware and rechecking serial access;
+the user's development-flash approval remains in effect.
+
 User observations: the Windows app launches; native USB produced Code 43 while
 the watch was asleep. Waking the watch and reconnecting exposed a serial port
 and a selectable candidate, but the protocol handshake timed out. The user
