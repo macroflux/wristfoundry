@@ -578,7 +578,8 @@ static void enter_battery_light_sleep(void)
              after_sleep.battery_mv);
 
     if (usb_wake) {
-        ESP_LOGI(TAG, "VBUS attached: USB restored; AMOLED remains off");
+        ESP_LOGI(TAG, "VBUS attached: USB restored; waking tethered display");
+        set_screen_awake(true);
         return;
     }
     show_sleep_result(sleep_duration_us);
