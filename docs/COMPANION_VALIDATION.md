@@ -36,6 +36,15 @@ records exact image hash, offset, update command and rollback to the user-tested
 companion firmware. The new application has not been flashed; no additional
 hardware results are claimed for it.
 
+The user approved applying the `c1de44d` app-only update. The pinned native USB
+device and all image checksums were rechecked, and no running companion or
+Python/serial-tool process was found. The automated esptool attempt again
+received Windows access denied when opening the port and exited with code 2
+before writing. The prepared app-only command was handed back for the user's
+own PowerShell, which previously succeeded for `14eb948`. This automated
+attempt did not alter the running firmware or NVS; applying and observing the
+new display behavior remain pending.
+
 ### Earlier automated flash attempts: blocked before writing
 
 The user approved the development flash and subsequent hardware tests. The
