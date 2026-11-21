@@ -15,6 +15,10 @@ Local checks on 2026-11-21:
 - Flutter/Dart are unavailable on PATH. Local Windows C++ compiler tools are
   also absent; the host C tests could not be linked/run locally.
 - Protocol Python test discovery was blocked by missing `jsonschema` locally.
+- CI submission is also blocked: the connected GitHub integration denies tree
+  writes (403), and local GitHub CLI authentication fails (401). A normal Git
+  fetch works with the Windows certificate backend, but authenticated push and
+  PR creation did not succeed. This candidate remains a local branch.
 
 New tests cover NVS save/reload with mocked reboot, failed commits, unchanged
 writes, invalid versions, revision conflicts, settings validation, desktop draft

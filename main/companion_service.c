@@ -299,7 +299,7 @@ static void dispatch(char *line)
         result = settings_json();
     } else if (!strcmp(cmd, "settings.set") || !strcmp(cmd, "settings.reset")) {
         wf_settings_t settings = wf_settings_defaults();
-        uint32_t revision;
+        uint32_t revision = 0;
         bool valid = integer(p, "expected_revision", &revision);
         if (!strcmp(cmd, "settings.set")) {
             const char *usb = string(p, "usb_display", 16);
