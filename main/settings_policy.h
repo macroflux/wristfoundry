@@ -24,3 +24,9 @@ static inline bool wf_settings_valid(const wf_settings_t *s)
         s->off_seconds > s->dim_seconds &&
         s->usb_display <= 1 && s->radio_finish <= 1;
 }
+
+static inline bool wf_settings_stop_radios(bool finish_bounded, int64_t now,
+                                          int64_t deadline, bool work_pending)
+{
+    return !finish_bounded || !work_pending || now >= deadline;
+}

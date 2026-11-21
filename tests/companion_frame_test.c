@@ -51,6 +51,10 @@ int main(void)
     assert(wf_settings_valid(&settings));
     settings.dim_seconds = 0;
     assert(!wf_settings_valid(&settings));
+    assert(wf_settings_stop_radios(false, 0, 30000000, true));
+    assert(!wf_settings_stop_radios(true, 29999999, 30000000, true));
+    assert(wf_settings_stop_radios(true, 30000000, 30000000, true));
+    assert(wf_settings_stop_radios(true, 1, 30000000, false));
     settings.dim_seconds = settings.off_seconds;
     assert(!wf_settings_valid(&settings));
     settings = wf_settings_defaults(); settings.usb_display = 2;

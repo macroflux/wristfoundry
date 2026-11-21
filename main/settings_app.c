@@ -17,32 +17,14 @@ typedef struct {
 } timezone_option_t;
 
 static const timezone_option_t s_timezone_options[] = {
-    {"US Eastern (UTC-5/-4 DST)", "EST5EDT,M3.2.0,M11.1.0"},
-    {"US Central (UTC-6/-5 DST)", "CST6CDT,M3.2.0,M11.1.0"},
-    {"US Mountain (UTC-7/-6 DST)", "MST7MDT,M3.2.0,M11.1.0"},
-    {"US Pacific (UTC-8/-7 DST)", "PST8PDT,M3.2.0,M11.1.0"},
-    {"Arizona (UTC-7)", "MST7"},
-    {"Alaska (UTC-9/-8 DST)", "AKST9AKDT,M3.2.0,M11.1.0"},
-    {"Hawaii (UTC-10)", "HST10"},
-    {"UTC-12:00", "UTC12"}, {"UTC-11:00", "UTC11"},
-    {"UTC-10:00", "UTC10"}, {"UTC-09:30", "UTC9:30"},
-    {"UTC-09:00", "UTC9"}, {"UTC-08:00", "UTC8"},
-    {"UTC-07:00", "UTC7"}, {"UTC-06:00", "UTC6"},
-    {"UTC-05:00", "UTC5"}, {"UTC-04:00", "UTC4"},
-    {"UTC-03:30", "UTC3:30"}, {"UTC-03:00", "UTC3"},
-    {"UTC-02:00", "UTC2"}, {"UTC-01:00", "UTC1"},
-    {"UTC+00:00", "UTC0"}, {"UTC+01:00", "UTC-1"},
-    {"UTC+02:00", "UTC-2"}, {"UTC+03:00", "UTC-3"},
-    {"UTC+03:30", "UTC-3:30"}, {"UTC+04:00", "UTC-4"},
-    {"UTC+04:30", "UTC-4:30"}, {"UTC+05:00", "UTC-5"},
-    {"UTC+05:30", "UTC-5:30"}, {"UTC+05:45", "UTC-5:45"},
-    {"UTC+06:00", "UTC-6"}, {"UTC+06:30", "UTC-6:30"},
-    {"UTC+07:00", "UTC-7"}, {"UTC+08:00", "UTC-8"},
-    {"UTC+08:45", "UTC-8:45"}, {"UTC+09:00", "UTC-9"},
-    {"UTC+09:30", "UTC-9:30"}, {"UTC+10:00", "UTC-10"},
-    {"UTC+10:30", "UTC-10:30"}, {"UTC+11:00", "UTC-11"},
-    {"UTC+12:00", "UTC-12"}, {"UTC+12:45", "UTC-12:45"},
-    {"UTC+13:00", "UTC-13"}, {"UTC+14:00", "UTC-14"},
+    {"UTC", "UTC0"},
+    {"US Eastern", "EST5EDT,M3.2.0,M11.1.0"},
+    {"US Central", "CST6CDT,M3.2.0,M11.1.0"},
+    {"US Mountain", "MST7MDT,M3.2.0,M11.1.0"},
+    {"US Pacific", "PST8PDT,M3.2.0,M11.1.0"},
+    {"Arizona", "MST7"},
+    {"London", "GMT0BST,M3.5.0/1,M10.5.0"},
+    {"Central Europe", "CET-1CEST,M3.5.0,M10.5.0/3"},
 };
 
 #define TIMEZONE_OPTION_COUNT (sizeof(s_timezone_options) / sizeof(s_timezone_options[0]))
@@ -135,7 +117,7 @@ static const char *selected_timezone(void)
 
 static void select_timezone(const char *posix)
 {
-    uint32_t selected = 21; /* UTC+00:00 */
+    uint32_t selected = 0; /* UTC */
     for (uint32_t i = 0; i < TIMEZONE_OPTION_COUNT; ++i) {
         if (strcmp(s_timezone_options[i].posix, posix) == 0) {
             selected = i;
@@ -214,10 +196,12 @@ static void save_event(lv_event_t *event)
     (void)event;
     watch_ui_note_activity();
     hide_keyboard();
+    network_snapshot_t network;
+    network_service_get_snapshot(&network);
     const esp_err_t result = network_service_save_configuration(
         lv_textarea_get_text(s_settings.ssid),
         lv_textarea_get_text(s_settings.password),
-        selected_timezone());
+        !strcmp(network.timezone, "NOT SET") ? "UTC0" : network.timezone);
     if (result == ESP_OK) {
         lv_label_set_text(
             s_settings.status,
@@ -242,8 +226,7 @@ static void clear_event(lv_event_t *event)
     if (result == ESP_OK) {
         lv_textarea_set_text(s_settings.ssid, "");
         lv_textarea_set_text(s_settings.password, "");
-        select_timezone("UTC0");
-        lv_label_set_text(s_settings.status, "Saved network removed.");
+        lv_label_set_text(s_settings.status, "Saved network removed; timezone preserved.");
     } else {
         lv_label_set_text_fmt(s_settings.status, "Clear failed: %s", esp_err_to_name(result));
     }

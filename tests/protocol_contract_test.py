@@ -25,9 +25,11 @@ class Contract(unittest.TestCase):
         rules = schema['allOf'][2]['then']['properties']['params']['properties']['timezone']['enum']
         dart = (ROOT / 'companion/desktop/lib/timezones.dart').read_text()
         firmware = (ROOT / 'main/timezone_rules.h').read_text()
+        watch_settings = (ROOT / 'main/settings_app.c').read_text()
         for rule in rules:
             self.assertIn(rule, dart)
             self.assertIn(rule, firmware)
+            self.assertIn(rule, watch_settings)
 
     def test_single_usb_reader_and_no_legacy_secret_console(self):
         sources = list((ROOT / 'main').glob('*.c'))

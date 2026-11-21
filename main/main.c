@@ -613,8 +613,6 @@ static void update_inactivity_lifecycle(void)
     if (settings.revision != settings_revision) {
         settings_revision = settings.revision;
         lifecycle_activity_us = now_us;
-        radio_deadline = 0;
-        radios_stopped = false;
         if (screen_awake) set_screen_awake(true);
     }
     if (now_us >= next_usb_check_us) {
@@ -638,10 +636,11 @@ static void update_inactivity_lifecycle(void)
         time_sync_snapshot_t sync;
         network_service_get_snapshot(&network);
         time_sync_service_get_snapshot(&sync);
-        if (now_us >= radio_deadline ||
-            (!network.scan_in_progress && !network.sync_in_progress &&
-             network.state != NETWORK_STATE_CONNECTING && !sync.active &&
-             ble_radar_service_can_sleep())) {
+        const bool pending = network.scan_in_progress || network.sync_in_progress ||
+            network.state == NETWORK_STATE_CONNECTING || sync.active ||
+            !ble_radar_service_can_sleep();
+        if (wf_settings_stop_radios(settings.values.radio_finish, now_us,
+                                   radio_deadline, pending)) {
             time_sync_service_cancel("DISPLAY OFF");
             network_service_force_off("DISPLAY OFF");
             ble_radar_service_stop("DISPLAY OFF");
