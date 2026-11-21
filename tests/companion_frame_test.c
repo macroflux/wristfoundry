@@ -4,6 +4,7 @@
 #include "../main/timezone_rules.h"
 #include "../main/companion_policy.h"
 #include "../main/usb_sleep_policy.h"
+#include "../main/settings_policy.h"
 
 int main(void)
 {
@@ -46,5 +47,15 @@ int main(void)
     assert(!wf_usb_keeps_display_awake(false, true)); /* no bright battery drain on PMU error */
     assert(!wf_usb_keeps_display_awake(false, false));
     puts("companion frame/rule tests passed");
+    wf_settings_t settings = wf_settings_defaults();
+    assert(wf_settings_valid(&settings));
+    settings.dim_seconds = 0;
+    assert(!wf_settings_valid(&settings));
+    settings.dim_seconds = settings.off_seconds;
+    assert(!wf_settings_valid(&settings));
+    settings = wf_settings_defaults(); settings.usb_display = 2;
+    assert(!wf_settings_valid(&settings));
+    settings = wf_settings_defaults(); settings.off_seconds = 601;
+    assert(!wf_settings_valid(&settings));
     return 0;
 }

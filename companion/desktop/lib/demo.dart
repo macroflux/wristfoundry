@@ -10,6 +10,13 @@ class DemoTransport implements Transport {
   String zone = 'UTC0';
   String wifi = 'OFF';
   String ssid = '';
+  int settingsRevision = 1;
+  Map<String, dynamic> preferences = {
+    'schema_version': 1, 'revision': 1, 'storage_ready': true, 'saved': false,
+    'dim_seconds': 10, 'off_seconds': 25, 'usb_display': 'stay_on',
+    'radio_policy': 'stop', 'radio_grace_seconds': 30,
+    'brightness_set': false, 'sleep_set': true,
+  };
   DateTime clock = DateTime.utc(2026, 11, 20, 14, 32);
   final caps = [
     'device.get',
@@ -22,6 +29,8 @@ class DemoTransport implements Transport {
     'ntp.sync',
     'ntp.cancel',
     'settings.get',
+    'settings.set',
+    'settings.reset',
     'apps.list',
     'apps.open',
     'apps.home',
@@ -29,6 +38,7 @@ class DemoTransport implements Transport {
   ];
   Map<String, dynamic> get snapshot => {
     'sequence': ++_sequence,
+    'settings_revision': settingsRevision,
     'battery_percent': 82,
     'charging': true,
     'rtc_local': clock.toIso8601String().replaceAll('T', ' ').substring(0, 19),
@@ -72,7 +82,7 @@ class DemoTransport implements Transport {
           'product': 'WristFoundry',
           'device_id': 'demo-watch',
           'model': 'Waveshare ESP32-S3 AMOLED 2.06',
-          'firmware': '0.1.0 · demo',
+          'firmware': '0.2.0 · demo',
           'capabilities': caps,
           'app_packages': false,
         };
@@ -96,26 +106,42 @@ class DemoTransport implements Transport {
           isUtc: true,
         );
       case 'settings.get':
-        result = {
-          'policy': '10s dim / 25s off; radios stop at display off',
-          'brightness_set': false,
-          'sleep_set': false,
-        };
+        result = Map<String, dynamic>.of(preferences);
+      case 'settings.set' || 'settings.reset':
+        final reset = q['cmd'] == 'settings.reset';
+        final d = reset ? 10 : p['dim_seconds'];
+        final o = reset ? 25 : p['off_seconds'];
+        if (p['expected_revision'] != settingsRevision) {
+          error = 'settings_conflict';
+        } else if (d is! int || o is! int || d < 5 || d > 300 || o < 10 || o > 600 || o <= d ||
+            (!reset && (!['stay_on', 'timeout'].contains(p['usb_display']) ||
+              !['stop', 'finish_bounded'].contains(p['radio_policy'])))) {
+          error = 'invalid_argument';
+        } else {
+          preferences = {...preferences, 'dim_seconds': d, 'off_seconds': o,
+            'usb_display': reset ? 'stay_on' : p['usb_display'],
+            'radio_policy': reset ? 'stop' : p['radio_policy'],
+            'saved': true, 'revision': ++settingsRevision};
+          result = Map<String, dynamic>.of(preferences);
+        }
       case 'apps.list':
         result = [
           {
             'id': 'settings',
             'name': 'Settings',
+            'icon': {'type': 'builtin', 'name': 'settings'}, 'initials': 'SE',
             'description': 'Shared network and clock controls',
           },
           {
             'id': 'ble_radar',
             'name': 'BLE Radar',
+            'icon': {'type': 'builtin', 'name': 'radar'}, 'initials': 'BR',
             'description': 'Bounded advertisement scanner',
           },
           {
             'id': 'system',
             'name': 'System',
+            'icon': {'type': 'builtin', 'name': 'system'}, 'initials': 'SY',
             'description': 'Board health and diagnostics',
           },
         ];

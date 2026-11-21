@@ -22,6 +22,8 @@ struct wf_app {
     wf_app_lifecycle_fn destroy;
     lv_obj_t *screen;
     void *context;
+    /* Portable builtin icon name, not an LVGL glyph. Optional for old apps. */
+    const char *icon_name;
 };
 
 typedef struct {

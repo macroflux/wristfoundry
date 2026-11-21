@@ -7,6 +7,7 @@ static wf_app_t example = {
     .id = "EXAMPLE",
     .name = "EXAMPLE",
     .icon = "EX",
+    .icon_name = "system", /* optional portable builtin name */
     .description = "A small demonstration app.",
     .create = example_create,
     .show = example_show,

@@ -1,5 +1,18 @@
 # WristFoundry
 
+## Next feature candidate: 0.2.0
+
+Persistent power/display preferences and shared app icons are being prepared.
+The watch and Companion expose USB display behavior, dim/off timeouts and
+bounded radio shutdown through one settings service. Preferences use internal
+NVS; no SD card or extra eFuse key is needed. Wi-Fi credential policy is unchanged.
+App identity/icon metadata is reported by the watch and rendered on both UIs.
+
+This candidate is not yet a tagged release. See the [changelog](CHANGELOG.md)
+and [settings update/acceptance guide](docs/SETTINGS_UPDATE.md). After validation,
+matching firmware and the full Windows runtime will be attached to a reviewed
+GitHub Release with checksums. Watch the repository's Releases for updates.
+
 WristFoundry is an open-source ESP-IDF and LVGL starter framework for the
 Waveshare ESP32-S3-Touch-AMOLED-2.06 watch. It provides a working watch face,
 scrolling launcher, app lifecycle, hardware telemetry, power-aware display and

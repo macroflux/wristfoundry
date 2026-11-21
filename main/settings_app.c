@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include "settings_service.h"
 #include "esp_err.h"
 #include "lvgl.h"
 #include "network_service.h"
@@ -58,12 +60,72 @@ typedef struct {
     uint32_t scan_generation;
     size_t scan_count;
     network_scan_result_t scan_results[NETWORK_SCAN_MAX_RESULTS];
+    lv_obj_t *pages[3];
+    lv_obj_t *dim, *off, *usb, *radio;
+    uint32_t settings_revision;
+    bool dirty;
+    unsigned page;
 } settings_context_t;
 
 static settings_context_t s_settings;
 static char s_timezone_option_text[TIMEZONE_OPTION_TEXT_SIZE];
 static char s_scan_option_text[SCAN_OPTION_TEXT_SIZE];
 static void hide_keyboard(void);
+static void show_page(unsigned page)
+{
+    hide_keyboard();
+    s_settings.page = page;
+    for (unsigned i = 0; i < 3; ++i) {
+        if (i == page) lv_obj_remove_flag(s_settings.pages[i], LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(s_settings.pages[i], LV_OBJ_FLAG_HIDDEN);
+    }
+    lv_obj_scroll_to_y(s_settings.content, 0, LV_ANIM_OFF);
+}
+static void page_event(lv_event_t *event)
+{
+    watch_ui_note_activity();
+    show_page((unsigned)(uintptr_t)lv_event_get_user_data(event));
+}
+static void preferences_changed(lv_event_t *event)
+{
+    (void)event;
+    s_settings.dirty = true;
+    watch_ui_note_activity();
+}
+static void load_preferences(void)
+{
+    wf_settings_snapshot_t s;
+    settings_service_get(&s);
+    char value[12];
+    snprintf(value, sizeof(value), "%lu", (unsigned long)s.values.dim_seconds);
+    lv_textarea_set_text(s_settings.dim, value);
+    snprintf(value, sizeof(value), "%lu", (unsigned long)s.values.off_seconds);
+    lv_textarea_set_text(s_settings.off, value);
+    lv_dropdown_set_selected(s_settings.usb, s.values.usb_display ? 0 : 1);
+    lv_dropdown_set_selected(s_settings.radio, s.values.radio_finish);
+    s_settings.settings_revision = s.revision;
+    s_settings.dirty = false;
+}
+static void save_preferences(lv_event_t *event)
+{
+    watch_ui_note_activity();
+    hide_keyboard();
+    wf_settings_t values = wf_settings_defaults();
+    if (!lv_event_get_user_data(event)) {
+        values.dim_seconds = (uint32_t)strtoul(lv_textarea_get_text(s_settings.dim), NULL, 10);
+        values.off_seconds = (uint32_t)strtoul(lv_textarea_get_text(s_settings.off), NULL, 10);
+        values.usb_display = lv_dropdown_get_selected(s_settings.usb) == 0;
+        values.radio_finish = lv_dropdown_get_selected(s_settings.radio);
+    }
+    esp_err_t err = settings_service_save(&values, s_settings.settings_revision);
+    if (err == ESP_OK) {
+        load_preferences();
+        lv_label_set_text(s_settings.status, "Preferences saved to watch.");
+    } else lv_label_set_text(s_settings.status, err == ESP_ERR_INVALID_STATE ?
+        "Changed elsewhere. Reopen Settings to reload." : err == ESP_ERR_INVALID_ARG ?
+        "Dim: 5-300s. Off: 10-600s, greater than dim." :
+        "Storage unavailable. Preferences were not changed.");
+}
 
 static const char *selected_timezone(void)
 {
@@ -107,6 +169,7 @@ static void back_event(lv_event_t *event)
     (void)event;
     watch_ui_note_activity();
     hide_keyboard();
+    if (s_settings.page != 0) { show_page(0); return; }
     wf_app_manager_show_launcher();
 }
 
@@ -205,6 +268,15 @@ static void sync_event(lv_event_t *event)
                       accepted ? "NTP synchronization requested." : "Sync is busy; try again.");
 }
 
+static void timezone_save_event(lv_event_t *event)
+{
+    (void)event;
+    watch_ui_note_activity();
+    esp_err_t err = network_service_set_timezone(selected_timezone());
+    lv_label_set_text(s_settings.status, err == ESP_OK ? "Timezone applied." :
+                      "Timezone not applied. Check time service/storage.");
+}
+
 static void scan_event(lv_event_t *event)
 {
     (void)event;
@@ -291,7 +363,38 @@ void settings_app_create(wf_app_t *app)
     lv_obj_set_flex_flow(s_settings.content, LV_FLEX_FLOW_COLUMN);
     lv_obj_add_event_cb(s_settings.content, content_event, LV_EVENT_CLICKED, NULL);
 
-    lv_obj_t *security = wf_ui_card_create(s_settings.content);
+    for (unsigned i = 0; i < 3; ++i) {
+        s_settings.pages[i] = lv_obj_create(s_settings.content);
+        lv_obj_remove_style_all(s_settings.pages[i]);
+        lv_obj_set_width(s_settings.pages[i], 362);
+        lv_obj_set_height(s_settings.pages[i], LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(s_settings.pages[i], LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_row(s_settings.pages[i], 12, 0);
+    }
+    lv_obj_t *preferences = s_settings.pages[0];
+    wf_ui_label_create(preferences, "POWER & DISPLAY", &lv_font_montserrat_20, WF_COLOR_TEXT);
+    wf_ui_label_create(preferences, "USB DISPLAY", &lv_font_montserrat_14, WF_COLOR_MUTED);
+    s_settings.usb = lv_dropdown_create(preferences);
+    lv_obj_set_size(s_settings.usb, 350, WF_TOUCH_TARGET);
+    lv_dropdown_set_options(s_settings.usb, "Stay on\nFollow timeouts");
+    s_settings.dim = make_field(preferences, "DIM AFTER (5-300 SECONDS)", 3);
+    s_settings.off = make_field(preferences, "DISPLAY OFF (10-600 SECONDS)", 3);
+    lv_textarea_set_accepted_chars(s_settings.dim, "0123456789");
+    lv_textarea_set_accepted_chars(s_settings.off, "0123456789");
+    wf_ui_label_create(preferences, "RADIOS AT DISPLAY OFF", &lv_font_montserrat_14, WF_COLOR_MUTED);
+    s_settings.radio = lv_dropdown_create(preferences);
+    lv_obj_set_size(s_settings.radio, 350, WF_TOUCH_TARGET);
+    lv_dropdown_set_options(s_settings.radio, "Stop immediately\nFinish work (max 30s)");
+    lv_obj_add_event_cb(s_settings.dim, preferences_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(s_settings.off, preferences_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(s_settings.usb, preferences_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_add_event_cb(s_settings.radio, preferences_changed, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_set_width(wf_ui_button_create(preferences, "SAVE SETTINGS", save_preferences, NULL), 350);
+    lv_obj_set_width(wf_ui_button_create(preferences, "RESTORE DEFAULTS", save_preferences, (void *)1), 350);
+    lv_obj_set_width(wf_ui_button_create(preferences, "WI-FI", page_event, (void *)1), 350);
+    lv_obj_set_width(wf_ui_button_create(preferences, "TIME & TIMEZONE", page_event, (void *)2), 350);
+
+    lv_obj_t *security = wf_ui_card_create(s_settings.pages[1]);
     lv_obj_set_size(security, 362, 86);
     lv_obj_t *security_label = wf_ui_label_create(
         security,
@@ -303,22 +406,22 @@ void settings_app_create(wf_app_t *app)
     lv_obj_set_width(security_label, 326);
     lv_label_set_long_mode(security_label, LV_LABEL_LONG_WRAP);
 
-    lv_obj_t *scan = wf_ui_button_create(s_settings.content, "SCAN WI-FI NETWORKS",
+    lv_obj_t *scan = wf_ui_button_create(s_settings.pages[1], "SCAN WI-FI NETWORKS",
                                          scan_event, NULL);
     lv_obj_set_size(scan, 362, 52);
-    s_settings.scan_picker = lv_dropdown_create(s_settings.content);
+    s_settings.scan_picker = lv_dropdown_create(s_settings.pages[1]);
     lv_obj_set_size(s_settings.scan_picker, 350, 52);
     lv_dropdown_set_options(s_settings.scan_picker, "Tap SCAN WI-FI NETWORKS");
     lv_obj_add_state(s_settings.scan_picker, LV_STATE_DISABLED);
     lv_obj_add_event_cb(s_settings.scan_picker, scan_picker_event,
                         LV_EVENT_VALUE_CHANGED, NULL);
 
-    s_settings.ssid = make_field(s_settings.content, "WI-FI SSID", 32);
-    s_settings.password = make_field(s_settings.content, "WI-FI PASSWORD", 64);
+    s_settings.ssid = make_field(s_settings.pages[1], "WI-FI SSID", 32);
+    s_settings.password = make_field(s_settings.pages[1], "WI-FI PASSWORD", 64);
     lv_textarea_set_password_mode(s_settings.password, true);
-    wf_ui_label_create(s_settings.content, "TIME ZONE", &lv_font_montserrat_14,
+    wf_ui_label_create(s_settings.pages[2], "TIME ZONE", &lv_font_montserrat_14,
                        WF_COLOR_MUTED);
-    s_settings.timezone_picker = lv_dropdown_create(s_settings.content);
+    s_settings.timezone_picker = lv_dropdown_create(s_settings.pages[2]);
     lv_obj_set_size(s_settings.timezone_picker, 350, 52);
     memset(s_timezone_option_text, 0, sizeof(s_timezone_option_text));
     size_t timezone_used = 0;
@@ -338,7 +441,7 @@ void settings_app_create(wf_app_t *app)
     lv_obj_add_event_cb(s_settings.timezone_picker, timezone_event,
                         LV_EVENT_VALUE_CHANGED, NULL);
 
-    lv_obj_t *row = lv_obj_create(s_settings.content);
+    lv_obj_t *row = lv_obj_create(s_settings.pages[1]);
     lv_obj_remove_style_all(row);
     lv_obj_set_size(row, 362, 58);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
@@ -353,7 +456,8 @@ void settings_app_create(wf_app_t *app)
     lv_obj_t *connect = wf_ui_button_create(row, "CONNECT", connect_event, NULL);
     lv_obj_set_width(connect, 112);
 
-    lv_obj_t *sync = wf_ui_button_create(s_settings.content, "SYNC TIME WITH NTP", sync_event, NULL);
+    lv_obj_set_width(wf_ui_button_create(s_settings.pages[2], "APPLY TIMEZONE", timezone_save_event, NULL), 350);
+    lv_obj_t *sync = wf_ui_button_create(s_settings.pages[2], "SYNC TIME WITH NTP", sync_event, NULL);
     lv_obj_set_size(sync, 362, 56);
     s_settings.status = wf_ui_label_create(s_settings.content, "Ready.", &lv_font_montserrat_14,
                                             WF_COLOR_MUTED);
@@ -367,11 +471,15 @@ void settings_app_create(wf_app_t *app)
     lv_obj_add_event_cb(s_settings.keyboard, keyboard_event, LV_EVENT_READY, NULL);
     lv_obj_add_event_cb(s_settings.keyboard, keyboard_event, LV_EVENT_CANCEL, NULL);
     lv_obj_add_flag(s_settings.keyboard, LV_OBJ_FLAG_HIDDEN);
+    load_preferences();
+    show_page(0);
 }
 
 void settings_app_show(wf_app_t *app)
 {
     (void)app;
+    load_preferences();
+    show_page(0);
     network_snapshot_t network;
     network_service_get_snapshot(&network);
     update_scan_results(&network);
@@ -386,12 +494,17 @@ void settings_app_hide(wf_app_t *app)
 {
     (void)app;
     hide_keyboard();
+    lv_textarea_set_text(s_settings.password, "");
 }
 
 void settings_app_update(wf_app_t *app, const void *model)
 {
     (void)app;
     (void)model;
+    wf_settings_snapshot_t preferences;
+    settings_service_get(&preferences);
+    if (!s_settings.dirty && preferences.revision != s_settings.settings_revision)
+        load_preferences();
     network_snapshot_t network;
     network_service_get_snapshot(&network);
     if (network.scan_in_progress) {

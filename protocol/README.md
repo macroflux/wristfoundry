@@ -60,11 +60,13 @@ UTF-8 **bytes**, which can be stricter than schema Unicode character limits.
 | `wifi.configure` | `ssid`, `password` | Shared service accepted RAM/encrypted-NVS config; not connected yet |
 | `wifi.connect` | `{}` | Manual network lease requested; await ONLINE/error state |
 | `wifi.disconnect` | `{}` | Releases manual lease; other service leases may remain |
-| `time.set` | integer `epoch_utc` | UTC set after successful local RTC write; 2024–2099 |
+| `time.set` | integer `epoch_utc` | UTC set after successful local RTC write; 2024â€“2099 |
 | `timezone.set` | named catalog POSIX `timezone` | Updates timezone independently of credentials |
 | `ntp.sync` | `{}` | Queued to existing sync owner; await SUCCESS/FAILED and detail |
 | `ntp.cancel` | `{}` | Cancel requested through existing sync service |
-| `settings.get` | `{}` | Existing compile-time dim/off policy; setter flags false |
+| `settings.get` | `{}` | Versioned preferences, revision and persistence availability |
+| `settings.set` | `expected_revision`, `dim_seconds`, `off_seconds`, `usb_display`, `radio_policy` | Preferences committed and active; conflict/failure never reports saved |
+| `settings.reset` | `expected_revision` | Defaults committed for preferences only |
 | `apps.list` | `{}` | Snapshot of statically registered `wf_app_t` descriptors |
 | `apps.open` | `app_id` | UI owner opened registered app, or returned timeout/error |
 | `apps.home` | `{}` | UI owner returned watch home |
@@ -79,7 +81,7 @@ Desktop treats unsupported capabilities as unavailable, not placeholder success.
 
 `malformed`, `frame_too_large`, `invalid_argument`, `unsupported_version`,
 `handshake_required`, `unsupported_command`, `busy`, `not_configured`,
-`storage_unavailable`, `rtc_write_failed`, `rtc_or_storage_failed`, and
+`storage_unavailable`, `settings_conflict`, `rtc_write_failed`, `rtc_or_storage_failed`, and
 `ui_unavailable`, and `display_asleep` are firmware codes. Parser errors with no valid ID use an empty
 ID and do not complete any pending host operation. The host additionally reports
 `timeout`, `write_failed`, `disconnected`, `port_in_use`, `access_denied`,
@@ -99,3 +101,10 @@ signatures, bounded transfer, storage quota, execution isolation, rollback and
 lifecycle ownership exist. Native compiled apps are firmware, not packages.
 Firmware update support similarly needs partition/security-aware review and is
 not implemented here. No automatic flash path or eFuse API is present.
+
+## Shared settings and icons (0.2.0 candidate)
+
+See [settings contract](../docs/SETTINGS_UPDATE.md) for bounds, defaults, revision
+conflicts, persistence, bounded radio completion, and portable builtin icon names.
+`apps.list` adds optional `icon` and `initials` fields; old consumers may ignore
+them and new consumers must fall back for missing or unknown metadata.

@@ -3,18 +3,228 @@
   "$id": "https://wristfoundry.dev/protocol/v1/request.schema.json",
   "title": "WristFoundry USB request v1 (excluding RS/WF1 prefix and LF)",
   "type": "object",
-  "required": ["v", "id", "cmd", "params"],
+  "required": [
+    "v",
+    "id",
+    "cmd",
+    "params"
+  ],
   "additionalProperties": false,
   "properties": {
-    "v": {"const": 1},
-    "id": {"type": "string", "minLength": 1, "maxLength": 48},
-    "cmd": {"type": "string", "minLength": 1, "maxLength": 40},
-    "params": {"type": "object"}
+    "v": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 48
+    },
+    "cmd": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "params": {
+      "type": "object"
+    }
   },
   "allOf": [
-    {"if": {"properties": {"cmd": {"const": "wifi.configure"}}}, "then": {"properties": {"params": {"required": ["ssid", "password"], "additionalProperties": false, "properties": {"ssid": {"type": "string", "minLength": 1, "maxLength": 32}, "password": {"type": "string", "maxLength": 64}}}}}},
-    {"if": {"properties": {"cmd": {"const": "time.set"}}}, "then": {"properties": {"params": {"required": ["epoch_utc"], "additionalProperties": false, "properties": {"epoch_utc": {"type": "integer", "minimum": 1704067200, "maximum": 4102444799}}}}}},
-    {"if": {"properties": {"cmd": {"const": "timezone.set"}}}, "then": {"properties": {"params": {"required": ["timezone"], "additionalProperties": false, "properties": {"timezone": {"type": "string", "enum": ["UTC0", "EST5EDT,M3.2.0,M11.1.0", "CST6CDT,M3.2.0,M11.1.0", "MST7MDT,M3.2.0,M11.1.0", "PST8PDT,M3.2.0,M11.1.0", "MST7", "GMT0BST,M3.5.0/1,M10.5.0", "CET-1CEST,M3.5.0,M10.5.0/3"]}}}}}},
-    {"if": {"properties": {"cmd": {"const": "apps.open"}}}, "then": {"properties": {"params": {"required": ["app_id"], "additionalProperties": false, "properties": {"app_id": {"type": "string", "minLength": 1, "maxLength": 47}}}}}}
+    {
+      "if": {
+        "properties": {
+          "cmd": {
+            "const": "wifi.configure"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "required": [
+              "ssid",
+              "password"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "ssid": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 32
+              },
+              "password": {
+                "type": "string",
+                "maxLength": 64
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "cmd": {
+            "const": "time.set"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "required": [
+              "epoch_utc"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "epoch_utc": {
+                "type": "integer",
+                "minimum": 1704067200,
+                "maximum": 4102444799
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "cmd": {
+            "const": "timezone.set"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "required": [
+              "timezone"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "timezone": {
+                "type": "string",
+                "enum": [
+                  "UTC0",
+                  "EST5EDT,M3.2.0,M11.1.0",
+                  "CST6CDT,M3.2.0,M11.1.0",
+                  "MST7MDT,M3.2.0,M11.1.0",
+                  "PST8PDT,M3.2.0,M11.1.0",
+                  "MST7",
+                  "GMT0BST,M3.5.0/1,M10.5.0",
+                  "CET-1CEST,M3.5.0,M10.5.0/3"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "cmd": {
+            "const": "apps.open"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "required": [
+              "app_id"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "app_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 47
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "cmd": {
+            "const": "settings.set"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "expected_revision",
+              "dim_seconds",
+              "off_seconds",
+              "usb_display",
+              "radio_policy"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4294967295
+              },
+              "dim_seconds": {
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 300
+              },
+              "off_seconds": {
+                "type": "integer",
+                "minimum": 10,
+                "maximum": 600
+              },
+              "usb_display": {
+                "enum": [
+                  "stay_on",
+                  "timeout"
+                ]
+              },
+              "radio_policy": {
+                "enum": [
+                  "stop",
+                  "finish_bounded"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "cmd": {
+            "const": "settings.reset"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "required": [
+              "expected_revision"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4294967295
+              }
+            }
+          }
+        }
+      }
+    }
   ]
 }
