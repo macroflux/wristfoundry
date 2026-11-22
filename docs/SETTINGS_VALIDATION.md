@@ -15,10 +15,28 @@ Local checks on 2026-11-21:
 - Flutter/Dart are unavailable on PATH. Local Windows C++ compiler tools are
   also absent; the host C tests could not be linked/run locally.
 - Protocol Python test discovery was blocked by missing `jsonschema` locally.
-- CI submission is also blocked: the connected GitHub integration denies tree
+- Initial CI submission was blocked: the connected GitHub integration denies tree
   writes (403), and local GitHub CLI authentication fails (401). A normal Git
   fetch works with the Windows certificate backend, but authenticated push and
-  PR creation did not succeed. This candidate remains a local branch.
+  PR creation did not succeed from this task. The user subsequently pushed the
+  branch and opened draft PR #2 from their own PowerShell.
+
+## CI at source 42de547
+
+[Firmware run](https://github.com/macroflux/wristfoundry/actions/runs/44980328189)
+passed development and encrypted-NVS builds, security assertions, public safety
+checks and artifact uploads. Secure firmware was built only, not flashed.
+
+[Companion run](https://github.com/macroflux/wristfoundry/actions/runs/44980328220)
+passed Python contracts, C framing/radio policy tests, production settings-service
+tests with mocked NVS, and Flutter analysis. During the widget tests, review
+identified a fake-clock deadlock in new settings-test initialization. Commit
+173a8aa moves delayed demo initialization into tester.runAsync. A rerun is
+required before claiming the Flutter suite and Windows package are validated.
+
+The development artifact ZIP was downloaded locally and its SHA-256 matched
+the GitHub artifact digest:
+`c2e049e72810dad2f4ea5151f07bb20498a8c2967ac87c6c1b89ee6743e32640`.
 
 New tests cover NVS save/reload with mocked reboot, failed commits, unchanged
 writes, invalid versions, revision conflicts, settings validation, desktop draft
