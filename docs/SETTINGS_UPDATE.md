@@ -1,7 +1,8 @@
-# Persistent settings and shared app icons (0.2.0 candidate)
+# Persistent settings and shared app icons (0.2.0)
 
-This is an untagged feature candidate. Do not treat source version strings as a
-published release or a passing hardware acceptance record.
+See SETTINGS_VALIDATION.md for CI results and the owner's local hardware report.
+Release downloads are available through the repository's Releases page after
+publication; a source version string alone does not establish publication.
 
 ## Settings contract
 
