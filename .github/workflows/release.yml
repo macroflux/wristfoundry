@@ -40,6 +40,7 @@ jobs:
             --output-file build/wristfoundry.cdx.json build/project_description.json
 
       - name: Assemble release bundle
+        # Packaging is blocked unless versioned changelog notes are finalized.
         shell: bash
         run: |
           set -euo pipefail
@@ -48,7 +49,8 @@ jobs:
           cp build/partition_table/partition-table.bin dist/partition_table/partition-table.bin
           cp build/wristfoundry.bin dist/wristfoundry.bin
           cp build/flash_args dist/flash_args
-          cp LICENSE NOTICE THIRD_PARTY_NOTICES.md README.md SECURITY.md dist/
+          python scripts/release_notes.py "$GITHUB_REF_NAME" > release-notes.md
+          cp LICENSE NOTICE THIRD_PARTY_NOTICES.md README.md SECURITY.md CHANGELOG.md dist/
           cp docs/INSTALL.md dist/INSTALL.md
           cp docs/RECOVERY.md dist/RECOVERY.md
           cp build/wristfoundry.cdx.json dist/
@@ -73,6 +75,43 @@ jobs:
             --draft \
             --verify-tag \
             --title "WristFoundry $GITHUB_REF_NAME" \
-            --generate-notes \
+            --notes-file release-notes.md \
             "wristfoundry-${GITHUB_REF_NAME}.tar.gz" \
             dist/SHA256SUMS
+
+  windows-companion:
+    name: Attach matching Windows companion to draft
+    needs: release
+    runs-on: windows-2022
+    environment: release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.38.7'
+          channel: stable
+          cache: true
+      - name: Verify and build companion
+        working-directory: companion/desktop
+        shell: pwsh
+        run: |
+          flutter pub get
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter analyze --fatal-infos
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter test --reporter expanded --timeout 90s
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ../../scripts/Package-Companion.ps1
+      - name: Attach complete runtime and separate checksums
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $package = 'companion/desktop/build/packages'
+          Copy-Item "$package/SHA256SUMS" "$package/COMPANION-SHA256SUMS"
+          gh release upload $env:GITHUB_REF_NAME "$package/wristfoundry-companion-windows-x64.zip" "$package/COMPANION-SHA256SUMS"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

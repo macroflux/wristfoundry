@@ -206,7 +206,14 @@ esp_err_t network_service_clear_configuration(void)
     if (!s_nvs_ready) return ESP_ERR_INVALID_STATE;
     nvs_handle_t handle = 0;
     esp_err_t result = nvs_open("network", NVS_READWRITE, &handle);
-    if (result == ESP_OK) result = nvs_erase_all(handle);
+    if (result == ESP_OK) {
+        result = nvs_erase_key(handle, "ssid");
+        if (result == ESP_ERR_NVS_NOT_FOUND) result = ESP_OK;
+    }
+    if (result == ESP_OK) {
+        result = nvs_erase_key(handle, "password");
+        if (result == ESP_ERR_NVS_NOT_FOUND) result = ESP_OK;
+    }
     if (result == ESP_OK) result = nvs_commit(handle);
     if (handle != 0) nvs_close(handle);
     if (result != ESP_OK) return result;
@@ -214,7 +221,6 @@ esp_err_t network_service_clear_configuration(void)
     lock();
     secure_zero(s_password, sizeof(s_password));
     memset(s_snapshot.ssid, 0, sizeof(s_snapshot.ssid));
-    strlcpy(s_snapshot.timezone, "NOT SET", sizeof(s_snapshot.timezone));
     s_snapshot.credentials_present = false;
     set_state_locked(NETWORK_STATE_OFF, "NOT PROVISIONED");
     unlock();

@@ -12,6 +12,7 @@
 #include "board_services.h"
 #include "network_service.h"
 #include "time_sync_service.h"
+#include "settings_service.h"
 #include "driver/usb_serial_jtag.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
@@ -142,6 +143,9 @@ static cJSON *snapshot(void)
     time_sync_service_get_snapshot(&t);
     board_services_read(&h);
     cJSON *r = cJSON_CreateObject();
+    wf_settings_snapshot_t preferences;
+    settings_service_get(&preferences);
+    cJSON_AddNumberToObject(r, "settings_revision", preferences.revision);
     cJSON_AddNumberToObject(r, "sequence", ++s_sequence);
     cJSON_AddBoolToObject(r, "display_awake", atomic_load(&s_display_awake));
     cJSON_AddNumberToObject(r, "uptime_ms", (double)(esp_timer_get_time() / 1000));
@@ -197,6 +201,10 @@ void companion_service_ui_tick(void)
             cJSON_AddStringToObject(o, "id", a->id);
             cJSON_AddStringToObject(o, "name", a->name);
             cJSON_AddStringToObject(o, "description", a->description);
+            cJSON *icon = cJSON_AddObjectToObject(o, "icon");
+            cJSON_AddStringToObject(icon, "type", "builtin");
+            cJSON_AddStringToObject(icon, "name", a->icon_name ? a->icon_name : "");
+            cJSON_AddStringToObject(o, "initials", a->icon);
             cJSON_AddItemToArray(s_ui_apps, o);
         }
     }
@@ -225,11 +233,40 @@ static cJSON *hello(void)
     cJSON_AddStringToObject(r, "firmware", esp_app_get_description()->version);
     const char *caps[] = {"device.get", "wifi.scan", "wifi.configure", "wifi.connect",
         "wifi.disconnect", "time.set", "timezone.set", "ntp.sync", "ntp.cancel",
-        "settings.get", "apps.list", "apps.open", "apps.home", "diagnostics.get"};
+        "settings.get", "settings.set", "settings.reset", "apps.list", "apps.open", "apps.home", "diagnostics.get"};
     cJSON_AddItemToObject(r, "capabilities", cJSON_CreateStringArray(caps, sizeof(caps)/sizeof(caps[0])));
     cJSON_AddBoolToObject(r, "app_packages", false);
     cJSON_AddNumberToObject(r, "request_max", WF_REQUEST_MAX);
     return r;
+}
+
+static cJSON *settings_json(void)
+{
+    wf_settings_snapshot_t s;
+    settings_service_get(&s);
+    cJSON *r = cJSON_CreateObject();
+    cJSON_AddNumberToObject(r, "schema_version", s.values.version);
+    cJSON_AddNumberToObject(r, "revision", s.revision);
+    cJSON_AddBoolToObject(r, "storage_ready", s.storage_ready);
+    cJSON_AddBoolToObject(r, "saved", s.saved);
+    cJSON_AddNumberToObject(r, "dim_seconds", s.values.dim_seconds);
+    cJSON_AddNumberToObject(r, "off_seconds", s.values.off_seconds);
+    cJSON_AddStringToObject(r, "usb_display", s.values.usb_display ? "stay_on" : "timeout");
+    cJSON_AddStringToObject(r, "radio_policy", s.values.radio_finish ? "finish_bounded" : "stop");
+    cJSON_AddNumberToObject(r, "radio_grace_seconds", WF_RADIO_GRACE_SECONDS);
+    cJSON_AddBoolToObject(r, "sleep_set", true);
+    cJSON_AddBoolToObject(r, "brightness_set", false);
+    cJSON_AddStringToObject(r, "policy", "Persistent preferences; USB communication remains awake independently of display");
+    return r;
+}
+
+static bool integer(cJSON *o, const char *key, uint32_t *out)
+{
+    cJSON *v = cJSON_GetObjectItemCaseSensitive(o, key);
+    if (!cJSON_IsNumber(v) || v->valuedouble < 0 || v->valuedouble > UINT32_MAX ||
+        v->valuedouble != (double)(uint32_t)v->valuedouble) return false;
+    *out = (uint32_t)v->valuedouble;
+    return true;
 }
 
 static void dispatch(char *line)
@@ -247,7 +284,9 @@ static void dispatch(char *line)
     cJSON *p = cJSON_GetObjectItemCaseSensitive(q, "params");
     const char *error = NULL;
     cJSON *result = NULL;
-    int expected_params = cmd && !strcmp(cmd, "wifi.configure") ? 2 :
+    int expected_params = cmd && !strcmp(cmd, "settings.set") ? 5 :
+        cmd && !strcmp(cmd, "settings.reset") ? 1 :
+        cmd && !strcmp(cmd, "wifi.configure") ? 2 :
         cmd && (!strcmp(cmd, "time.set") || !strcmp(cmd, "timezone.set") || !strcmp(cmd, "apps.open")) ? 1 : 0;
     if (!id || !id[0] || !cmd || !cJSON_IsObject(p) ||
         cJSON_GetArraySize(q) != 4 || cJSON_GetArraySize(p) != expected_params) error = "invalid_argument";
@@ -257,10 +296,25 @@ static void dispatch(char *line)
     else if (!atomic_load(&s_display_awake) && wf_command_needs_awake(cmd)) error = "display_asleep";
     else if (!strcmp(cmd, "device.get") || !strcmp(cmd, "diagnostics.get")) result = snapshot();
     else if (!strcmp(cmd, "settings.get")) {
-        result = cJSON_CreateObject();
-        cJSON_AddStringToObject(result, "policy", "USB: stays awake (PWR can blank display); battery: 10s dim / 25s off; radios stop at display off");
-        cJSON_AddBoolToObject(result, "brightness_set", false);
-        cJSON_AddBoolToObject(result, "sleep_set", false);
+        result = settings_json();
+    } else if (!strcmp(cmd, "settings.set") || !strcmp(cmd, "settings.reset")) {
+        wf_settings_t settings = wf_settings_defaults();
+        uint32_t revision = 0;
+        bool valid = integer(p, "expected_revision", &revision);
+        if (!strcmp(cmd, "settings.set")) {
+            const char *usb = string(p, "usb_display", 16);
+            const char *radio = string(p, "radio_policy", 20);
+            valid = valid && integer(p, "dim_seconds", &settings.dim_seconds) &&
+                integer(p, "off_seconds", &settings.off_seconds) && usb && radio &&
+                (!strcmp(usb, "stay_on") || !strcmp(usb, "timeout")) &&
+                (!strcmp(radio, "stop") || !strcmp(radio, "finish_bounded"));
+            settings.usb_display = usb && !strcmp(usb, "stay_on");
+            settings.radio_finish = radio && !strcmp(radio, "finish_bounded");
+        }
+        esp_err_t e = valid ? settings_service_save(&settings, revision) : ESP_ERR_INVALID_ARG;
+        if (e == ESP_OK) result = settings_json();
+        else error = e == ESP_ERR_INVALID_ARG ? "invalid_argument" :
+            e == ESP_ERR_INVALID_STATE ? "settings_conflict" : "storage_unavailable";
     } else if (!strcmp(cmd, "wifi.scan")) {
         if (!network_service_request_scan()) error = "busy";
     } else if (!strcmp(cmd, "wifi.connect")) {

@@ -3,6 +3,34 @@
 All notable changes are documented here. WristFoundry follows Semantic
 Versioning once a version is published.
 
+## 0.2.0 - 2026-11-21
+
+### Added
+- Shared power/display preferences in the watch Settings app and Windows
+  Companion: USB display mode, dim/off timeouts, bounded radio completion,
+  explicit save and restore defaults.
+- Nonsecret preferences in a versioned internal-NVS record, with defaults on
+  absent/invalid data, revision conflict detection, and no writes for unchanged
+  saved values. Wi-Fi credential security/persistence remains unchanged.
+- Settings landing page with separate Wi-Fi and Time/timezone sections.
+- Portable builtin icon metadata in `apps.list`, watch launcher symbols and
+  companion icons, with initials fallback for existing/unknown apps.
+
+### Compatibility and updating
+- USB protocol remains v1 with additive capabilities. New companion controls
+  require `settings.set`; old firmware keeps its read-only policy view.
+- No SD card, partition change, NVS erase, or extra eFuse key is required.
+- USB communication remains available independently of display timeout. Radio
+  completion is limited to 30 seconds after display-off; it is not an always-on mode.
+- Firmware/companion version: 0.2.0. See `docs/SETTINGS_UPDATE.md` for
+  application-only firmware updates, complete Windows runtime installation,
+  and rollback instructions. Existing compatible installations retain NVS.
+- Install both matching components, close older Companion instances, and
+  reconnect. Settings saved from either interface use the same watch storage.
+- Local hardware operation and settings saving were confirmed by the project
+  owner. Detailed power measurements and the full radio/sleep matrix remain
+  unverified; see `docs/SETTINGS_VALIDATION.md`.
+
 ## 0.1.0 — release candidate
 
 - Introduced the reusable app lifecycle and scrolling launcher.

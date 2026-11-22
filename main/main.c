@@ -29,13 +29,14 @@
 #include "lvgl.h"
 #include "network_service.h"
 #include "nvs_flash.h"
+#include "settings_service.h"
 #include "sdkconfig.h"
 #include "watch_ui.h"
 #include "time_sync_service.h"
 #include "usb_sleep_policy.h"
 #include "hal/usb_serial_jtag_ll.h"
 
-#define WRISTFOUNDRY_VERSION "0.1.0"
+#define WRISTFOUNDRY_VERSION "0.2.0"
 #define HOME_APPS_GPIO GPIO_NUM_0
 #define PWR_WAKE_GPIO GPIO_NUM_10
 #define POWER_KEY_POLL_MS 20
@@ -277,7 +278,10 @@ static void set_screen_awake(bool awake)
     if (awake == screen_awake && !(awake && screen_dimmed)) {
         return;
     }
-    if (!awake && WRISTFOUNDRY_POWER_TEST_MODE == POWER_TEST_NORMAL) {
+    wf_settings_snapshot_t settings;
+    settings_service_get(&settings);
+    if (!awake && WRISTFOUNDRY_POWER_TEST_MODE == POWER_TEST_NORMAL &&
+        !settings.values.radio_finish) {
         time_sync_service_cancel("DISPLAY OFF");
         network_service_force_off("DISPLAY OFF");
         ble_radar_service_stop("DISPLAY OFF");
@@ -445,6 +449,13 @@ static void enter_battery_light_sleep(void)
     /* All manual callers, including the PWR-release and power-test paths. */
     if (usb_tether_blocks_sleep()) return;
     if (WRISTFOUNDRY_POWER_TEST_MODE == POWER_TEST_NORMAL) {
+        wf_settings_snapshot_t preferences;
+        settings_service_get(&preferences);
+        network_snapshot_t network;
+        network_service_get_snapshot(&network);
+        if (preferences.values.radio_finish &&
+            (network.radio_active || !ble_radar_service_can_sleep() ||
+             !time_sync_service_can_sleep())) return;
         time_sync_service_cancel("LIGHT SLEEP");
         network_service_force_off("LIGHT SLEEP");
         ble_radar_service_stop("LIGHT SLEEP");
@@ -593,7 +604,17 @@ static void update_inactivity_lifecycle(void)
 {
     static int64_t next_usb_check_us;
     static bool tethered;
+    static uint32_t settings_revision;
+    static int64_t radio_deadline;
+    static bool radios_stopped;
+    wf_settings_snapshot_t settings;
+    settings_service_get(&settings);
     const int64_t now_us = esp_timer_get_time();
+    if (settings.revision != settings_revision) {
+        settings_revision = settings.revision;
+        lifecycle_activity_us = now_us;
+        if (screen_awake) set_screen_awake(true);
+    }
     if (now_us >= next_usb_check_us) {
         bool vbus = false;
         const esp_err_t result = board_services_usb_power_present(&vbus);
@@ -605,7 +626,28 @@ static void update_inactivity_lifecycle(void)
         tethered = attached;
         next_usb_check_us = now_us + 1000000;
     }
-    if (tethered) {
+    /* Radio grace is a hard maximum, not permission for an indefinite lease.
+     * Closing the display blocks new radio operations through the companion. */
+    if (screen_awake) { radio_deadline = 0; radios_stopped = false; }
+    else if (!radios_stopped) {
+        if (!radio_deadline) radio_deadline = now_us +
+            (settings.values.radio_finish ? WF_RADIO_GRACE_SECONDS * 1000000LL : 0);
+        network_snapshot_t network;
+        time_sync_snapshot_t sync;
+        network_service_get_snapshot(&network);
+        time_sync_service_get_snapshot(&sync);
+        const bool pending = network.scan_in_progress || network.sync_in_progress ||
+            network.state == NETWORK_STATE_CONNECTING || sync.active ||
+            !ble_radar_service_can_sleep();
+        if (wf_settings_stop_radios(settings.values.radio_finish, now_us,
+                                   radio_deadline, pending)) {
+            time_sync_service_cancel("DISPLAY OFF");
+            network_service_force_off("DISPLAY OFF");
+            ble_radar_service_stop("DISPLAY OFF");
+            radios_stopped = true;
+        }
+    }
+    if (tethered && settings.values.usb_display) {
         /* The PWR button can still explicitly blank the screen. Automatic
          * dim/off is paused; unplug starts a fresh battery idle interval. */
         lifecycle_activity_us = now_us;
@@ -625,10 +667,10 @@ static void update_inactivity_lifecycle(void)
     }
 
     const int64_t idle_ms = (esp_timer_get_time() - lifecycle_activity_us) / 1000;
-    if (idle_ms >= SLEEP_TIMEOUT_MS) {
-        ESP_LOGI(TAG, "Inactivity: %d ms -> DISPLAY OFF", SLEEP_TIMEOUT_MS);
+    if (idle_ms >= settings.values.off_seconds * 1000LL) {
+        ESP_LOGI(TAG, "Inactivity -> DISPLAY OFF");
         set_screen_awake(false);
-    } else if (idle_ms >= DIM_TIMEOUT_MS && !screen_dimmed) {
+    } else if (idle_ms >= settings.values.dim_seconds * 1000LL && !screen_dimmed) {
         if (!bsp_display_lock(1000)) {
             ESP_LOGW(TAG, "Could not dim display: LVGL lock timed out");
             return;
@@ -637,8 +679,7 @@ static void update_inactivity_lifecycle(void)
         bsp_display_unlock();
         if (result == ESP_OK) {
             screen_dimmed = true;
-            ESP_LOGI(TAG, "Inactivity: %d ms -> DIM (%d%%)", DIM_TIMEOUT_MS,
-                     DIM_BRIGHTNESS_PERCENT);
+            ESP_LOGI(TAG, "Inactivity -> DIM (%d%%)", DIM_BRIGHTNESS_PERCENT);
         }
     }
 }
@@ -901,7 +942,7 @@ static void log_startup_diagnostics(void)
              esp_reset_reason());
     ESP_LOGI(TAG, "Wake cause: %d; retained boot count: %" PRIu32,
              esp_sleep_get_wakeup_cause(), retained_boot_count);
-    ESP_LOGI(TAG, "Lifecycle: ACTIVE -> DIM at %d ms (%d%%) -> OFF/SLEEP at %d ms",
+    ESP_LOGI(TAG, "Default lifecycle (saved preferences override): DIM at %d ms (%d%%) -> OFF at %d ms",
              DIM_TIMEOUT_MS, DIM_BRIGHTNESS_PERCENT, SLEEP_TIMEOUT_MS);
     ESP_LOGI(TAG, "Motion wake: deferred; schematic QMI8658 INT1=GPIO21, GPIO10 retained");
     ESP_LOGI(TAG, "Power-test build mode: %s (%d)", power_test_mode_name(),
@@ -987,9 +1028,10 @@ void app_main(void)
                      esp_err_to_name(nvs_result));
         }
 #else
-        const esp_err_t nvs_result = ESP_ERR_NOT_SUPPORTED;
-        ESP_LOGI(TAG, "Development profile: NVS intentionally left uninitialized; Wi-Fi credentials are RAM-only");
+        const esp_err_t nvs_result = nvs_flash_init();
+        ESP_LOGI(TAG, "Development profile: NVS for nonsecret preferences only; Wi-Fi credentials remain RAM-only");
 #endif
+        ESP_ERROR_CHECK(settings_service_init(nvs_result == ESP_OK));
         ESP_ERROR_CHECK(ble_radio_owner_init());
         ESP_ERROR_CHECK(ble_radar_service_init());
         ESP_ERROR_CHECK(network_service_init(nvs_result == ESP_OK));

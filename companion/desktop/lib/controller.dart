@@ -70,6 +70,14 @@ class CompanionController extends ChangeNotifier {
           final s = await _client!.request('device.get');
           if (epoch == _epoch && !_acceptFresh(s, before))
             await disconnect(lost: true);
+          if (epoch == _epoch && supports('settings.set') && !busy &&
+              snapshot['settings_revision'] != settings['revision']) {
+            final value = await _client!.request('settings.get');
+            if (epoch == _epoch && value is Map<String, dynamic>) {
+              settings = value;
+              _notify();
+            }
+          }
         } catch (_) {
           if (epoch == _epoch) await disconnect(lost: true);
         } finally {
@@ -309,7 +317,7 @@ class CompanionController extends ChangeNotifier {
         apps = (result as List)
             .map((a) => Map<String, dynamic>.from(a as Map))
             .toList();
-      if (cmd == 'settings.get')
+      if (cmd == 'settings.get' || cmd == 'settings.set' || cmd == 'settings.reset')
         settings = Map<String, dynamic>.from(result as Map);
       final before = _sequence;
       final fresh = await _client!.request('device.get');
@@ -402,6 +410,8 @@ String describeFailure(String? code) => switch (code) {
     'The watch was disconnected. Reconnect the same watch and retry.',
   'invalid_argument' =>
     'The watch rejected this value. Check the entered settings.',
+  'settings_conflict' => 'Settings changed on the watch. Reload settings and review your changes.',
+  'storage_unavailable' => 'Settings were not saved. Watch preference storage is unavailable.',
   _ =>
     'The operation was not confirmed. Check the cable and firmware, then retry.',
 };

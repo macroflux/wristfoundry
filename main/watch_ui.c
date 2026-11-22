@@ -398,20 +398,20 @@ static void system_update(wf_app_t *app, const void *data)
 
 static wf_app_t s_apps[] = {
     {
-        .id = "SYSTEM", .name = "SYSTEM", .icon = "SY",
+        .id = "SYSTEM", .name = "SYSTEM", .icon = "SY", .icon_name = "system",
         .description = "Hardware, power, sleep, reset, motion, and network diagnostics.",
         .create = system_create, .show = app_noop, .hide = app_noop,
         .update = system_update, .destroy = app_destroy, .context = &s_system_context,
     },
     {
-        .id = "SETTINGS", .name = "SETTINGS", .icon = "SE",
+        .id = "SETTINGS", .name = "SETTINGS", .icon = "SE", .icon_name = "settings",
         .description = "Secure on-watch Wi-Fi provisioning and NTP time synchronization.",
         .create = settings_app_create, .show = settings_app_show,
         .hide = settings_app_hide, .update = settings_app_update,
         .destroy = settings_app_destroy,
     },
     {
-        .id = "BLE_RADAR", .name = "BLE RADAR", .icon = "BR",
+        .id = "BLE_RADAR", .name = "BLE RADAR", .icon = "BR", .icon_name = "radar",
         .description = "Bounded, time-limited nearby Bluetooth LE advertisement scanning.",
         .create = ble_radar_app_create, .show = ble_radar_app_show,
         .hide = ble_radar_app_hide, .update = ble_radar_app_update,

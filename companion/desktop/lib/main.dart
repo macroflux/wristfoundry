@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'controller.dart';
 import 'timezones.dart';
 import 'transport.dart';
+import 'settings_editor.dart';
+import 'app_icon.dart';
 
 const ink = Color(0xFF03070B),
     panel = Color(0xFF0B1820),
@@ -154,7 +156,7 @@ class _CompanionAppState extends State<CompanionApp> {
                 child: Row(
                   children: [
                     const Text(
-                      'WRISTFOUNDRY  /  COMPANION 0.1',
+                      'WRISTFOUNDRY  /  COMPANION 0.2',
                       style: TextStyle(
                         color: muted,
                         fontSize: 10,
@@ -566,7 +568,7 @@ class _CompanionAppState extends State<CompanionApp> {
                 if (c.page == 0) _overview(size.maxWidth),
                 if (c.page == 1) _wifi(),
                 if (c.page == 2) _time(),
-                if (c.page == 3) _settings(),
+                if (c.page == 3) _card(SettingsEditor(controller: c)),
                 if (c.page == 4) _apps(),
                 if (c.page == 5) _diagnostics(),
               ],
@@ -1010,45 +1012,6 @@ class _CompanionAppState extends State<CompanionApp> {
     ],
   );
 
-  Widget _settings() => _card(
-    Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Firmware-supported settings',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          '${c.settings['policy'] ?? 'Read settings to inspect the watch power policy.'}',
-          style: const TextStyle(color: muted),
-        ),
-        const SizedBox(height: 20),
-        _inset(
-          'Brightness and sleep intervals are compile-time policy in this firmware. This companion does not expose unimplemented setters.',
-        ),
-        const SizedBox(height: 18),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            OutlinedButton(
-              onPressed: _action('settings.get'),
-              child: const Text('Read settings'),
-            ),
-            OutlinedButton(
-              onPressed: () => c.navigate(2),
-              child: const Text('Timezone & time'),
-            ),
-            OutlinedButton(
-              onPressed: () => c.navigate(1),
-              child: const Text('Wi-Fi configuration'),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
   Widget _apps() => _card(
     Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1066,7 +1029,7 @@ class _CompanionAppState extends State<CompanionApp> {
         for (final a in c.apps)
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.widgets_outlined, color: cyan),
+            leading: appIcon(a),
             title: Text('${a['name']}'),
             subtitle: Text(
               '${a['description']}',

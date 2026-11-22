@@ -70,14 +70,22 @@ static void create_launcher(void)
         lv_obj_add_flag(tile, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(tile, launcher_app_event, LV_EVENT_CLICKED, app);
 
-        lv_obj_t *icon = wf_ui_label_create(tile, app->icon, &lv_font_montserrat_20,
+        const char *glyph = app->icon;
+        if (app->icon_name) {
+            if (!strcmp(app->icon_name, "settings")) glyph = LV_SYMBOL_SETTINGS;
+            else if (!strcmp(app->icon_name, "system")) glyph = LV_SYMBOL_LIST;
+            else if (!strcmp(app->icon_name, "radar")) glyph = LV_SYMBOL_BLUETOOTH;
+        }
+        lv_obj_t *icon = wf_ui_label_create(tile, glyph, &lv_font_montserrat_32,
                                              WF_COLOR_PRIMARY);
-        lv_obj_align(icon, LV_ALIGN_TOP_LEFT, 0, 0);
+        lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 0);
+        lv_obj_remove_flag(icon, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_t *name = wf_ui_label_create(tile, app->name, &lv_font_montserrat_14,
                                              WF_COLOR_TEXT);
         lv_obj_set_width(name, 142);
         lv_label_set_long_mode(name, LV_LABEL_LONG_WRAP);
         lv_obj_align(name, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+        lv_obj_remove_flag(name, LV_OBJ_FLAG_CLICKABLE);
     }
 }
 

@@ -75,8 +75,9 @@ claimed reset-safe.
 Wake the watch using its power button before starting Wi-Fi scanning,
 connecting, NTP or app navigation. The existing display owner reports awake
 state to the companion; these commands reject with `display_asleep` while off.
-Reads and offline configuration remain available. USB never wakes the AMOLED
-or bypasses the existing radio shutdown policy.
+Reads and offline configuration remain available. USB attachment wakes the
+AMOLED; the 0.2.0 candidate lets its display follow timeouts while preserving
+USB communication. Radio shutdown follows the selected bounded power policy.
 
 ## Shared services and boundaries
 
@@ -121,8 +122,9 @@ change; this PR does not claim to resolve that existing design limitation.
 ## Capabilities and app model
 
 The dashboard routes to Wi-Fi, time, settings, apps and diagnostics. Firmware
-advertises only implemented commands. Brightness and sleep timing remain
-compile-time policy with setters unavailable. Apps are compiled descriptors;
+advertises only implemented commands. Brightness remains fixed; the 0.2.0
+candidate adds saved dim/off, USB display and bounded radio policy controls.
+See [settings update](SETTINGS_UPDATE.md). Apps are compiled descriptors;
 **individual installation/removal is unavailable** until a package runtime
 exists. Extension names and prerequisites are documented in `protocol/README.md`.
 
