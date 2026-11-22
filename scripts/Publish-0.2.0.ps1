@@ -14,10 +14,22 @@ $branch = git branch --show-current
 if ($LASTEXITCODE -ne 0 -or $branch -ne 'feat/persistent-settings-icons') { throw 'Expected feature branch' }
 $changes = git status --porcelain
 if ($LASTEXITCODE -ne 0 -or $changes) { throw 'Commit or resolve local changes before release' }
-$head = git rev-parse HEAD
+$head = (git rev-parse HEAD).Trim()
 Invoke-Checked git @('-c', 'http.sslBackend=schannel', 'push', 'origin', 'HEAD:feat/persistent-settings-icons')
-$pr = gh pr view 2 --repo $repo --json headRefOid,isDraft,state | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0 -or $pr.headRefOid -ne $head -or $pr.state -ne 'OPEN') { throw 'PR head/state mismatch' }
+# The PR API can briefly report the previous head immediately after a push.
+$headDeadline = (Get-Date).AddMinutes(2)
+do {
+    $prJson = gh pr view 2 --repo $repo --json headRefOid,isDraft,state
+    if ($LASTEXITCODE -ne 0) { throw 'Could not read PR #2' }
+    $pr = $prJson | ConvertFrom-Json
+    if ($pr.state -ne 'OPEN') { throw "PR #2 is $($pr.state); expected OPEN" }
+    if ($pr.headRefOid -eq $head) { break }
+    if ((Get-Date) -gt $headDeadline) {
+        throw "PR #2 head remains $($pr.headRefOid); expected $head. No merge or tag was performed."
+    }
+    Write-Host "Waiting for GitHub PR head to update to $head..."
+    Start-Sleep -Seconds 5
+} while ($true)
 if ($pr.isDraft) { Invoke-Checked gh @('pr', 'ready', '2', '--repo', $repo) }
 # Wait for both workflows on this exact head, including queued runs.
 $deadline = (Get-Date).AddMinutes(45)
