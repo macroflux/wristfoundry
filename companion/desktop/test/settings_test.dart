@@ -28,8 +28,12 @@ void main() {
 
   testWidgets('draft survives refresh and invalid timeouts cannot be saved', (tester) async {
     final c = CompanionController(Discovery());
-    await c.connect(tryDemo: true);
-    await c.execute('settings.get');
+    // Demo transport uses real delayed replies. Initialize outside the widget
+    // test's fake clock before rendering; awaiting those timers directly hangs.
+    await tester.runAsync(() async {
+      await c.connect(tryDemo: true);
+      await c.execute('settings.get');
+    });
     Future<void> render() => tester.pumpWidget(MaterialApp(home: Scaffold(
       body: SingleChildScrollView(child: SettingsEditor(controller: c)))));
     await render();
