@@ -3,6 +3,19 @@
 All notable changes are documented here. WristFoundry follows Semantic
 Versioning once a version is published.
 
+## Unreleased - 0.3.0 candidate
+
+- Android Flutter Companion with explicit BLE scanning, system passkey pairing,
+  shared settings, network/clock controls, app icons/navigation and diagnostics.
+- Settings section cards on watch, Windows and Android: Power & display, Wi-Fi,
+  Time & timezone, and Phone connection.
+- Watch-initiated 60-second discovery, authenticated/encrypted control, display
+  hold during active companion sessions, and five-minute user-idle disconnect.
+  Polling does not extend sessions. PWR can blank the display; disconnect restores
+  the saved power profile. Radar and phone sessions share exclusive radio ownership.
+- Debug APK packaging in CI. Hardware pairing, reconnect and battery acceptance
+  are pending; this candidate is not published. See docs/ANDROID_COMPANION.md.
+
 ## 0.2.0 - 2026-11-21
 
 ### Added

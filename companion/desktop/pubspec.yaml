@@ -1,7 +1,7 @@
 name: wristfoundry_companion
-description: Official tethered Windows companion for the WristFoundry framework.
+description: Official Windows USB and Android BLE companion for WristFoundry.
 publish_to: none
-version: 0.2.0+2
+version: 0.3.0+3
 environment:
   sdk: '>=3.10.0 <4.0.0'
 dependencies:

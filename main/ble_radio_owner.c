@@ -44,6 +44,7 @@ const char *ble_radio_owner_name(ble_radio_owner_t owner)
 {
     switch (owner) {
     case BLE_RADIO_OWNER_RADAR: return "RADAR";
+    case BLE_RADIO_OWNER_PHONE: return "PHONE";
     case BLE_RADIO_OWNER_NONE:
     default: return "NONE";
     }

@@ -5,6 +5,7 @@
 #include "board_services.h"
 #include "ble_radar_service.h"
 #include "ble_radio_owner.h"
+#include "phone_service.h"
 #include "bsp/esp-bsp.h"
 #include "bsp/display.h"
 #include "driver/gpio.h"
@@ -447,7 +448,7 @@ static bool set_touch_input_enabled(bool enabled)
 static void enter_battery_light_sleep(void)
 {
     /* All manual callers, including the PWR-release and power-test paths. */
-    if (usb_tether_blocks_sleep()) return;
+    if (usb_tether_blocks_sleep() || phone_service_blocks_sleep()) return;
     if (WRISTFOUNDRY_POWER_TEST_MODE == POWER_TEST_NORMAL) {
         wf_settings_snapshot_t preferences;
         settings_service_get(&preferences);
@@ -607,9 +608,14 @@ static void update_inactivity_lifecycle(void)
     static uint32_t settings_revision;
     static int64_t radio_deadline;
     static bool radios_stopped;
+    static bool phone_was_active;
     wf_settings_snapshot_t settings;
     settings_service_get(&settings);
     const int64_t now_us = esp_timer_get_time();
+    const bool phone_active = phone_service_active();
+    if (phone_active && !phone_was_active) set_screen_awake(true);
+    if (phone_active || phone_was_active) lifecycle_activity_us = now_us;
+    phone_was_active = phone_active;
     if (settings.revision != settings_revision) {
         settings_revision = settings.revision;
         lifecycle_activity_us = now_us;
@@ -647,7 +653,7 @@ static void update_inactivity_lifecycle(void)
             radios_stopped = true;
         }
     }
-    if (tethered && settings.values.usb_display) {
+    if (phone_active || (tethered && settings.values.usb_display)) {
         /* The PWR button can still explicitly blank the screen. Automatic
          * dim/off is paused; unplug starts a fresh battery idle interval. */
         lifecycle_activity_us = now_us;
@@ -1034,6 +1040,7 @@ void app_main(void)
         ESP_ERROR_CHECK(settings_service_init(nvs_result == ESP_OK));
         ESP_ERROR_CHECK(ble_radio_owner_init());
         ESP_ERROR_CHECK(ble_radar_service_init());
+        ESP_ERROR_CHECK(phone_service_init());
         ESP_ERROR_CHECK(network_service_init(nvs_result == ESP_OK));
         ESP_ERROR_CHECK(time_sync_service_init(
             network_service_credentials_are_encrypted()));

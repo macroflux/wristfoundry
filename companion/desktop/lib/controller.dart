@@ -20,6 +20,23 @@ enum ConnectionStage {
 class CompanionController extends ChangeNotifier {
   CompanionController(this.discovery);
   final DeviceDiscovery discovery;
+  bool get wireless => discovery is AndroidBleDiscovery;
+  Map<String, dynamic> phone = {};
+  DateTime? _lastInteraction;
+  Future<void> noteInteraction() async {
+    if (!wireless || !supports('session.activity') || busy) return;
+    final now = DateTime.now();
+    if (_lastInteraction != null &&
+        now.difference(_lastInteraction!).inSeconds < 10)
+      return;
+    _lastInteraction = now;
+    try {
+      await _client?.request('session.activity');
+    } catch (_) {
+      /* Poll detects disconnect. */
+    }
+  }
+
   ConnectionStage stage = ConnectionStage.idle;
   List<Candidate> devices = [];
   Candidate? selected;
@@ -70,7 +87,9 @@ class CompanionController extends ChangeNotifier {
           final s = await _client!.request('device.get');
           if (epoch == _epoch && !_acceptFresh(s, before))
             await disconnect(lost: true);
-          if (epoch == _epoch && supports('settings.set') && !busy &&
+          if (epoch == _epoch &&
+              supports('settings.set') &&
+              !busy &&
               snapshot['settings_revision'] != settings['revision']) {
             final value = await _client!.request('settings.get');
             if (epoch == _epoch && value is Map<String, dynamic>) {
@@ -88,7 +107,8 @@ class CompanionController extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
-    if (_refreshing || _disposed || demo || connecting) return;
+    if (_refreshing || _disposed || demo || connecting || (wireless && ready))
+      return;
     _refreshing = true;
     final epoch = _epoch;
     if (!ready &&
@@ -109,7 +129,10 @@ class CompanionController extends ChangeNotifier {
         return;
       }
       if (!ready) {
-        if (selected != null && !found.any((p) => p.port == selected!.port && p.usbId == selected!.usbId))
+        if (selected != null &&
+            !found.any(
+              (p) => p.port == selected!.port && p.usbId == selected!.usbId,
+            ))
           selected = null;
         final candidates = found.where((p) => p.candidate).toList();
         if (selected == null && candidates.length == 1)
@@ -161,6 +184,8 @@ class CompanionController extends ChangeNotifier {
     capabilities = [];
     apps = [];
     settings = {};
+    phone = {};
+    _lastInteraction = null;
     _sequence = -1;
     receivedAt = null;
     _notify();
@@ -237,6 +262,8 @@ class CompanionController extends ChangeNotifier {
     final seq = (value['sequence'] as num).toInt();
     if (seq <= _sequence) return false;
     _sequence = seq;
+    if (value['phone'] is Map)
+      phone = Map<String, dynamic>.from(value['phone'] as Map);
     final battery = value['battery_percent'];
     snapshot = {
       ...value,
@@ -286,6 +313,8 @@ class CompanionController extends ChangeNotifier {
     apps = [];
     settings = {};
     receivedAt = null;
+    phone = {};
+    _lastInteraction = null;
     busy = false;
     operationMessage = null;
     stage = lost ? ConnectionStage.disconnected : ConnectionStage.idle;
@@ -313,11 +342,14 @@ class CompanionController extends ChangeNotifier {
     try {
       final result = await _client!.request(cmd, params);
       if (epoch != _epoch) return false;
+      if (cmd == 'phone.get') phone = Map<String, dynamic>.from(result as Map);
       if (cmd == 'apps.list')
         apps = (result as List)
             .map((a) => Map<String, dynamic>.from(a as Map))
             .toList();
-      if (cmd == 'settings.get' || cmd == 'settings.set' || cmd == 'settings.reset')
+      if (cmd == 'settings.get' ||
+          cmd == 'settings.set' ||
+          cmd == 'settings.reset')
         settings = Map<String, dynamic>.from(result as Map);
       final before = _sequence;
       final fresh = await _client!.request('device.get');
@@ -345,6 +377,7 @@ class CompanionController extends ChangeNotifier {
   }
 
   void navigate(int index) {
+    unawaited(noteInteraction());
     page = index;
     operationMessage = null;
     _notify();
@@ -405,13 +438,20 @@ String describeFailure(String? code) => switch (code) {
     'The watch could not update its RTC or storage. Time was not confirmed. Check device diagnostics.',
   'not_configured' => 'Configure a Wi-Fi network on the watch first.',
   'discovery_failed' =>
-    'USB discovery is unavailable. Check the Windows runner build and refresh.',
+    'Discovery is unavailable. On Android allow Nearby devices and enable Bluetooth; on Windows check the USB connection.',
+  'permission_denied' =>
+    'Allow Nearby devices to find and connect to your watch.',
+  'bluetooth_off' => 'Turn on Bluetooth on your phone, then scan again.',
+  'pairing_failed' =>
+    'Pairing was not completed. Start discovery on the watch and enter its current code. If needed, forget the old Android pairing first.',
   'disconnected' =>
     'The watch was disconnected. Reconnect the same watch and retry.',
   'invalid_argument' =>
     'The watch rejected this value. Check the entered settings.',
-  'settings_conflict' => 'Settings changed on the watch. Reload settings and review your changes.',
-  'storage_unavailable' => 'Settings were not saved. Watch preference storage is unavailable.',
+  'settings_conflict' =>
+    'Settings changed on the watch. Reload settings and review your changes.',
+  'storage_unavailable' =>
+    'Settings were not saved. Watch preference storage is unavailable.',
   _ =>
     'The operation was not confirmed. Check the cable and firmware, then retry.',
 };

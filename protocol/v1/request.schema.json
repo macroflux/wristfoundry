@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wristfoundry.dev/protocol/v1/request.schema.json",
-  "title": "WristFoundry USB request v1 (excluding RS/WF1 prefix and LF)",
+  "title": "WristFoundry request v1 over USB or authenticated BLE (excluding framing)",
   "type": "object",
   "required": [
     "v",
@@ -222,6 +222,28 @@
                 "maximum": 4294967295
               }
             }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "cmd": {
+            "enum": [
+              "phone.get",
+              "phone.discover",
+              "phone.disconnect",
+              "session.activity"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "maxProperties": 0
           }
         }
       }

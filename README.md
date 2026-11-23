@@ -1,5 +1,8 @@
 # WristFoundry
 
+Development: the [Android BLE Companion and Settings section cards](docs/ANDROID_COMPANION.md)
+are a 0.3.0 candidate. The published 0.2.0 release remains the stable update.
+
 ## WristFoundry 0.2.0
 
 Persistent power/display preferences and shared app icons are included.

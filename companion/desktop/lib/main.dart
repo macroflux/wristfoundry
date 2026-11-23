@@ -5,8 +5,10 @@ import 'package:flutter/services.dart';
 import 'controller.dart';
 import 'timezones.dart';
 import 'transport.dart';
-import 'settings_editor.dart';
 import 'app_icon.dart';
+import 'package:flutter/foundation.dart';
+import 'mobile_app.dart';
+import 'settings_sections.dart';
 
 const ink = Color(0xFF03070B),
     panel = Color(0xFF0B1820),
@@ -19,8 +21,17 @@ const line = Color(0xFF214652),
     amber = Color(0xFFFFCB69);
 const captureKey = ValueKey('companion-capture');
 
-void main() =>
+void main() {
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    runApp(
+      MobileCompanionApp(
+        controller: CompanionController(AndroidBleDiscovery()),
+      ),
+    );
+  } else {
     runApp(CompanionApp(controller: CompanionController(WindowsDiscovery())));
+  }
+}
 
 class CompanionApp extends StatefulWidget {
   const CompanionApp({
@@ -156,7 +167,7 @@ class _CompanionAppState extends State<CompanionApp> {
                 child: Row(
                   children: [
                     const Text(
-                      'WRISTFOUNDRY  /  COMPANION 0.2',
+                      'WRISTFOUNDRY  /  COMPANION 0.3',
                       style: TextStyle(
                         color: muted,
                         fontSize: 10,
@@ -568,7 +579,14 @@ class _CompanionAppState extends State<CompanionApp> {
                 if (c.page == 0) _overview(size.maxWidth),
                 if (c.page == 1) _wifi(),
                 if (c.page == 2) _time(),
-                if (c.page == 3) _card(SettingsEditor(controller: c)),
+                if (c.page == 3)
+                  _card(
+                    SettingsSections(
+                      controller: c,
+                      onWifi: () => c.navigate(1),
+                      onTime: () => c.navigate(2),
+                    ),
+                  ),
                 if (c.page == 4) _apps(),
                 if (c.page == 5) _diagnostics(),
               ],

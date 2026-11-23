@@ -2,7 +2,7 @@ idf_component_register(
     SRCS "main.c" "board_services.c" "network_service.c" "ui_design.c"
          "app_manager.c" "watch_ui.c" "ble_radio_owner.c"
          "ble_radar_service.c" "ble_radar_app.c" "settings_app.c"
-         "time_sync_service.c" "companion_service.c" "settings_service.c"
+         "time_sync_service.c" "companion_service.c" "settings_service.c" "phone_service.c"
     INCLUDE_DIRS "."
     PRIV_REQUIRES json esp_app_format esp_driver_gpio esp_driver_i2c
                   esp_driver_usb_serial_jtag esp_event esp_netif esp_system
