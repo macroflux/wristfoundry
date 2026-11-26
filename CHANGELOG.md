@@ -5,6 +5,9 @@ Versioning once a version is published.
 
 ## Unreleased - 0.3.0 candidate
 
+- Reduce full-width display transfers from 16,400 to 6,560 bytes to address
+  redraw stalls under BLE internal-memory pressure; expose largest DMA heap
+  block in diagnostics. Physical navigation acceptance remains pending.
 - Constrain mobile power dropdowns, show Wi-Fi scan progress/results and initialize
   the phone timezone picker from the watch. Settings shortcut buttons use the
   correct mobile routes. Include internal/PSRAM heap figures in redacted

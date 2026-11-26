@@ -417,6 +417,7 @@ class CompanionController extends ChangeNotifier {
         'internal_heap_largest',
         'internal_heap_minimum',
         'psram_heap_free',
+        'dma_heap_largest',
       ])
         k: snapshot[k],
     },

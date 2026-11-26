@@ -58,6 +58,19 @@ result. Secure firmware must only be compiled, never routinely flashed.
 
 ## Remaining physical acceptance
 
+Owner measurements on c0c49d1: before navigation, total free 6,861,555;
+internal free 32,823, largest 12,800, minimum 8,828; PSRAM free 6,828,656.
+After Back froze the watch display, telemetry still replied: total 6,864,227;
+internal free 35,511; largest/minimum/PSRAM unchanged. No Wi-Fi scan was needed.
+This does not establish a leak. Source inspection found the 20-line RGB565
+partial buffer permits a 16,400-byte transfer, larger than the observed largest
+internal block. ESP-IDF SPI allocates internal DMA staging for unsuitable TX
+buffers and returns NO_MEM on failure; the LVGL port ignores draw_bitmap's
+return value and awaits a transfer-done callback that cannot arrive on failed
+submission. Eight-line strips reduce full-width transfer demand to 6,560 bytes.
+This is a source-supported explanation/mitigation, not hardware confirmation;
+retest Back/Home, app launch, scrolling and Wi-Fi with BLE before release.
+
 Hardware follow-up: owner confirmed the d68479f Android build connects and reads
 telemetry, app descriptors and diagnostics. Owner also reported a narrow power
 dropdown overflow, unclear scan feedback/default UTC, and watch navigation
