@@ -410,6 +410,13 @@ class CompanionController extends ChangeNotifier {
         'wifi_state',
         'sync_state',
         'persistence',
+        'scan_busy',
+        'scan_result',
+        'free_heap',
+        'internal_heap_free',
+        'internal_heap_largest',
+        'internal_heap_minimum',
+        'psram_heap_free',
       ])
         k: snapshot[k],
     },

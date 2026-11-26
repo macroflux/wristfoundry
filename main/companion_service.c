@@ -20,6 +20,7 @@
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_system.h"
+#include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -199,6 +200,10 @@ static cJSON *snapshot(void)
     cJSON_AddStringToObject(r, "time_source", t.last_source);
     cJSON_AddNumberToObject(r, "last_sync_epoch", (double)t.last_success_epoch);
     cJSON_AddNumberToObject(r, "free_heap", esp_get_free_heap_size());
+    cJSON_AddNumberToObject(r, "internal_heap_free", heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(r, "internal_heap_largest", heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(r, "internal_heap_minimum", heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(r, "psram_heap_free", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
     return r;
 }
 

@@ -58,6 +58,16 @@ result. Secure firmware must only be compiled, never routinely flashed.
 
 ## Remaining physical acceptance
 
+Hardware follow-up: owner confirmed the d68479f Android build connects and reads
+telemetry, app descriptors and diagnostics. Owner also reported a narrow power
+dropdown overflow, unclear scan feedback/default UTC, and watch navigation
+freezing while connected with a reported NO_MEM message. The candidate addresses
+the mobile presentation/routing issues, cleans up the default Wi-Fi netif after
+driver-init failure and exports internal free/largest/minimum heap plus PSRAM
+free bytes. The navigation freeze is NOT established as fixed; capture the new
+heap diagnostics before/after scan and navigation, and verify navigation in a
+fresh session without scanning Wi-Fi. These new changes are not installed yet.
+
 The owner reported a real BLE handshake timeout after entering the watch code.
 Source inspection found that the native RS-only pairing probe remained in the
 firmware line buffer, causing the following hello frame to be discarded. The

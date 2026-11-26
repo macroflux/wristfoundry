@@ -29,7 +29,11 @@ class _SettingsSectionsState extends State<SettingsSections> {
             icon: const Icon(Icons.arrow_back),
             label: const Text('All settings'),
           ),
-          SettingsEditor(controller: c),
+          SettingsEditor(
+            controller: c,
+            onWifi: widget.onWifi,
+            onTime: widget.onTime,
+          ),
         ],
       );
     }

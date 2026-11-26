@@ -259,7 +259,14 @@ class _MobileCompanionAppState extends State<MobileCompanionApp>
         SettingsSections(
           controller: c,
           onWifi: () => setState(() => subpage = 'wifi'),
-          onTime: () => setState(() => subpage = 'time'),
+          onTime: () => setState(() {
+            final reported = c.snapshot['timezone'];
+            zone = watchZones.firstWhere(
+              (z) => z.rule == reported,
+              orElse: () => watchZones.first,
+            );
+            subpage = 'time';
+          }),
         ),
       ];
     if (tab == 1)
@@ -271,8 +278,16 @@ class _MobileCompanionAppState extends State<MobileCompanionApp>
         ),
         if (subpage == 'wifi') ...[
           const Text('Wi-Fi', style: TextStyle(fontSize: 24)),
+          const Text('Scan asks the watch to find nearby Wi-Fi networks.'),
+          Text(
+            c.snapshot['scan_busy'] == true
+                ? 'Scanning on watch…'
+                : 'Last scan: ${c.snapshot['scan_result'] ?? 'Not run'}',
+          ),
           OutlinedButton(
-            onPressed: c.busy ? null : () => c.execute('wifi.scan'),
+            onPressed: c.busy || c.snapshot['scan_busy'] == true
+                ? null
+                : () => c.execute('wifi.scan'),
             child: const Text('Scan networks'),
           ),
           for (final network in (c.snapshot['networks'] as List? ?? const []))
@@ -317,7 +332,12 @@ class _MobileCompanionAppState extends State<MobileCompanionApp>
           ),
         ] else ...[
           const Text('Time & timezone', style: TextStyle(fontSize: 24)),
+          Text(
+            'Current watch timezone: ${c.snapshot['timezone'] ?? 'Unknown'}',
+          ),
+          Text('Watch time: ${c.snapshot['rtc_local'] ?? 'Unknown'}'),
           DropdownButtonFormField<WatchZone>(
+            key: ValueKey('phone-zone-${zone.rule}'),
             initialValue: zone,
             isExpanded: true,
             items: watchZones

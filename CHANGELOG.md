@@ -5,6 +5,10 @@ Versioning once a version is published.
 
 ## Unreleased - 0.3.0 candidate
 
+- Constrain mobile power dropdowns, show Wi-Fi scan progress/results and initialize
+  the phone timezone picker from the watch. Settings shortcut buttons use the
+  correct mobile routes. Include internal/PSRAM heap figures in redacted
+  diagnostics and release the default Wi-Fi interface after driver-init failure.
 - Fix Android BLE pairing-probe framing that could silently discard the first
   handshake; Bluetooth timeout guidance now identifies the failing stage.
 - Shared compact watch artwork on the Android welcome screen, plus WF branding
