@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "settings_service.h"
+#include "phone_service.h"
 #include "esp_err.h"
 #include "lvgl.h"
 #include "network_service.h"
@@ -42,7 +43,8 @@ typedef struct {
     uint32_t scan_generation;
     size_t scan_count;
     network_scan_result_t scan_results[NETWORK_SCAN_MAX_RESULTS];
-    lv_obj_t *pages[3];
+    lv_obj_t *pages[5];
+    lv_obj_t *phone_status;
     lv_obj_t *dim, *off, *usb, *radio;
     uint32_t settings_revision;
     bool dirty;
@@ -57,7 +59,7 @@ static void show_page(unsigned page)
 {
     hide_keyboard();
     s_settings.page = page;
-    for (unsigned i = 0; i < 3; ++i) {
+    for (unsigned i = 0; i < 5; ++i) {
         if (i == page) lv_obj_remove_flag(s_settings.pages[i], LV_OBJ_FLAG_HIDDEN);
         else lv_obj_add_flag(s_settings.pages[i], LV_OBJ_FLAG_HIDDEN);
     }
@@ -67,6 +69,12 @@ static void page_event(lv_event_t *event)
 {
     watch_ui_note_activity();
     show_page((unsigned)(uintptr_t)lv_event_get_user_data(event));
+}
+static void phone_event(lv_event_t *event)
+{
+    watch_ui_note_activity();
+    if (lv_event_get_user_data(event)) phone_service_stop();
+    else phone_service_discover();
 }
 static void preferences_changed(lv_event_t *event)
 {
@@ -151,7 +159,7 @@ static void back_event(lv_event_t *event)
     (void)event;
     watch_ui_note_activity();
     hide_keyboard();
-    if (s_settings.page != 0) { show_page(0); return; }
+    if (s_settings.page != 3) { show_page(3); return; }
     wf_app_manager_show_launcher();
 }
 
@@ -346,7 +354,7 @@ void settings_app_create(wf_app_t *app)
     lv_obj_set_flex_flow(s_settings.content, LV_FLEX_FLOW_COLUMN);
     lv_obj_add_event_cb(s_settings.content, content_event, LV_EVENT_CLICKED, NULL);
 
-    for (unsigned i = 0; i < 3; ++i) {
+    for (unsigned i = 0; i < 5; ++i) {
         s_settings.pages[i] = lv_obj_create(s_settings.content);
         lv_obj_remove_style_all(s_settings.pages[i]);
         lv_obj_set_width(s_settings.pages[i], 362);
@@ -374,8 +382,23 @@ void settings_app_create(wf_app_t *app)
     lv_obj_add_event_cb(s_settings.radio, preferences_changed, LV_EVENT_VALUE_CHANGED, NULL);
     lv_obj_set_width(wf_ui_button_create(preferences, "SAVE SETTINGS", save_preferences, NULL), 350);
     lv_obj_set_width(wf_ui_button_create(preferences, "RESTORE DEFAULTS", save_preferences, (void *)1), 350);
-    lv_obj_set_width(wf_ui_button_create(preferences, "WI-FI", page_event, (void *)1), 350);
-    lv_obj_set_width(wf_ui_button_create(preferences, "TIME & TIMEZONE", page_event, (void *)2), 350);
+    lv_obj_t *phone_note = wf_ui_label_create(preferences, "Phone: screen stays on during an active session. PWR can blank it.", &lv_font_montserrat_14, WF_COLOR_MUTED);
+    lv_obj_set_width(phone_note, 350);
+    lv_label_set_long_mode(phone_note, LV_LABEL_LONG_WRAP);
+
+    const char *sections[] = {LV_SYMBOL_SETTINGS "  POWER & DISPLAY", LV_SYMBOL_WIFI "  WI-FI", LV_SYMBOL_REFRESH "  TIME & TIMEZONE", LV_SYMBOL_BLUETOOTH "  PHONE CONNECTION"};
+    for (unsigned i = 0; i < 4; ++i) {
+        lv_obj_t *card = wf_ui_button_create(s_settings.pages[3], sections[i], page_event, (void *)(uintptr_t)(i == 3 ? 4 : i));
+        lv_obj_set_size(card, 350, 70);
+    }
+    s_settings.phone_status = wf_ui_label_create(s_settings.pages[4], "Bluetooth off", &lv_font_montserrat_20, WF_COLOR_TEXT);
+    lv_obj_set_width(s_settings.phone_status, 350);
+    lv_label_set_long_mode(s_settings.phone_status, LV_LABEL_LONG_WRAP);
+    lv_obj_t *phone_hint = wf_ui_label_create(s_settings.pages[4], "Open Companion on your phone. Enter the watch code in Android's pairing dialog.\nSession closes after 5 minutes without interaction.", &lv_font_montserrat_14, WF_COLOR_MUTED);
+    lv_obj_set_width(phone_hint, 350);
+    lv_label_set_long_mode(phone_hint, LV_LABEL_LONG_WRAP);
+    lv_obj_set_size(wf_ui_button_create(s_settings.pages[4], "DISCOVER FOR 60 SECONDS", phone_event, NULL), 350, 64);
+    lv_obj_set_size(wf_ui_button_create(s_settings.pages[4], "DISCONNECT / CANCEL", phone_event, (void *)1), 350, 64);
 
     lv_obj_t *security = wf_ui_card_create(s_settings.pages[1]);
     lv_obj_set_size(security, 362, 86);
@@ -455,14 +478,14 @@ void settings_app_create(wf_app_t *app)
     lv_obj_add_event_cb(s_settings.keyboard, keyboard_event, LV_EVENT_CANCEL, NULL);
     lv_obj_add_flag(s_settings.keyboard, LV_OBJ_FLAG_HIDDEN);
     load_preferences();
-    show_page(0);
+    show_page(3);
 }
 
 void settings_app_show(wf_app_t *app)
 {
     (void)app;
     load_preferences();
-    show_page(0);
+    show_page(3);
     network_snapshot_t network;
     network_service_get_snapshot(&network);
     update_scan_results(&network);
@@ -484,6 +507,12 @@ void settings_app_update(wf_app_t *app, const void *model)
 {
     (void)app;
     (void)model;
+    if (s_settings.page == 4) {
+        wf_phone_snapshot_t phone; phone_service_get(&phone);
+        if (phone.active) lv_label_set_text_fmt(s_settings.phone_status, "CONNECTED\nIdle timeout: %lus", (unsigned long)phone.seconds_remaining);
+        else if (phone.busy) lv_label_set_text_fmt(s_settings.phone_status, "%s: %lus\nPAIRING CODE: %06lu", phone.connected ? "PAIRING" : "DISCOVERABLE", (unsigned long)phone.seconds_remaining, (unsigned long)phone.passkey);
+        else lv_label_set_text(s_settings.phone_status, phone.error ? "Bluetooth unavailable. Stop BLE Radar and retry." : "Bluetooth off");
+    }
     wf_settings_snapshot_t preferences;
     settings_service_get(&preferences);
     if (!s_settings.dirty && preferences.revision != s_settings.settings_revision)

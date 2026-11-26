@@ -5,6 +5,7 @@
 #include "app_manager.h"
 #include "ble_radar_app.h"
 #include "ble_radar_service.h"
+#include "phone_service.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
@@ -84,6 +85,7 @@ static uint8_t weekday_from_date(const board_health_t *health)
 void watch_ui_note_activity(void)
 {
     s_last_activity_us = esp_timer_get_time();
+    phone_service_activity(false);
 }
 
 int64_t watch_ui_last_activity_us(void)

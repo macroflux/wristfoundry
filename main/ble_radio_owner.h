@@ -7,6 +7,7 @@
 typedef enum {
     BLE_RADIO_OWNER_NONE,
     BLE_RADIO_OWNER_RADAR,
+    BLE_RADIO_OWNER_PHONE,
 } ble_radio_owner_t;
 
 esp_err_t ble_radio_owner_init(void);

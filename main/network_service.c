@@ -19,6 +19,7 @@
 #include "esp_netif_sntp.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
+#include "esp_wifi_default.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -332,7 +333,13 @@ static esp_err_t ensure_wifi_initialized(void)
     wifi_init_config_t init = WIFI_INIT_CONFIG_DEFAULT();
     init.nvs_enable = false;
     result = esp_wifi_init(&init);
-    if (result != ESP_OK) return result;
+    if (result != ESP_OK) {
+        /* In particular, BLE + UI pressure can make initialization fail with
+         * NO_MEM. Release the default netif/handlers before another scan retry. */
+        esp_netif_destroy_default_wifi(s_sta_netif);
+        s_sta_netif = NULL;
+        return result;
+    }
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID,
                                                 wifi_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP,

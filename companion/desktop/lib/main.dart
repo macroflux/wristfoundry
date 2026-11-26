@@ -5,8 +5,11 @@ import 'package:flutter/services.dart';
 import 'controller.dart';
 import 'timezones.dart';
 import 'transport.dart';
-import 'settings_editor.dart';
 import 'app_icon.dart';
+import 'watch_preview.dart';
+import 'package:flutter/foundation.dart';
+import 'mobile_app.dart';
+import 'settings_sections.dart';
 
 const ink = Color(0xFF03070B),
     panel = Color(0xFF0B1820),
@@ -19,8 +22,17 @@ const line = Color(0xFF214652),
     amber = Color(0xFFFFCB69);
 const captureKey = ValueKey('companion-capture');
 
-void main() =>
+void main() {
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    runApp(
+      MobileCompanionApp(
+        controller: CompanionController(AndroidBleDiscovery()),
+      ),
+    );
+  } else {
     runApp(CompanionApp(controller: CompanionController(WindowsDiscovery())));
+  }
+}
 
 class CompanionApp extends StatefulWidget {
   const CompanionApp({
@@ -156,7 +168,7 @@ class _CompanionAppState extends State<CompanionApp> {
                 child: Row(
                   children: [
                     const Text(
-                      'WRISTFOUNDRY  /  COMPANION 0.2',
+                      'WRISTFOUNDRY  /  COMPANION 0.3',
                       style: TextStyle(
                         color: muted,
                         fontSize: 10,
@@ -198,7 +210,12 @@ class _CompanionAppState extends State<CompanionApp> {
             borderRadius: BorderRadius.circular(11),
             border: Border.all(color: line),
           ),
-          child: const Icon(Icons.watch_outlined, color: cyan, size: 24),
+          child: Image.asset(
+            'assets/wristfoundry-mark.png',
+            width: 24,
+            height: 24,
+            excludeFromSemantics: true,
+          ),
         ),
         const SizedBox(width: 13),
         const Column(
@@ -568,7 +585,14 @@ class _CompanionAppState extends State<CompanionApp> {
                 if (c.page == 0) _overview(size.maxWidth),
                 if (c.page == 1) _wifi(),
                 if (c.page == 2) _time(),
-                if (c.page == 3) _card(SettingsEditor(controller: c)),
+                if (c.page == 3)
+                  _card(
+                    SettingsSections(
+                      controller: c,
+                      onWifi: () => c.navigate(1),
+                      onTime: () => c.navigate(2),
+                    ),
+                  ),
                 if (c.page == 4) _apps(),
                 if (c.page == 5) _diagnostics(),
               ],
@@ -1220,127 +1244,3 @@ Widget _metric(String label, String value, String detail, IconData icon) =>
         ],
       ),
     );
-
-class WatchPreview extends StatelessWidget {
-  const WatchPreview({
-    super.key,
-    this.clock = '--:--',
-    this.battery,
-    this.connected = false,
-  });
-  final String clock;
-  final num? battery;
-  final bool connected;
-  @override
-  Widget build(BuildContext context) => CustomPaint(
-    painter: _WatchOrbit(),
-    child: Center(
-      child: Container(
-        width: 156,
-        height: 207,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
-        decoration: BoxDecoration(
-          color: ink,
-          borderRadius: BorderRadius.circular(36),
-          border: Border.all(color: line, width: 4),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x2056DBF4),
-              blurRadius: 45,
-              spreadRadius: 5,
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'WRISTFOUNDRY',
-              style: TextStyle(color: cyan, fontSize: 8, letterSpacing: 1.6),
-            ),
-            const SizedBox(height: 27),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                clock,
-                maxLines: 1,
-                style: TextStyle(
-                  color: text,
-                  fontSize: clock.length > 5 ? 24 : 32,
-                  fontWeight: FontWeight.w300,
-                  letterSpacing: -1,
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              connected ? 'DEVICE RTC' : 'READY TO CONNECT',
-              style: const TextStyle(
-                color: muted,
-                fontSize: 7,
-                letterSpacing: 1.4,
-              ),
-            ),
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(
-                color: raised,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.memory, size: 12, color: cyan),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      battery == null ? 'USB / v1' : 'BATTERY  $battery%',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: cyan, fontSize: 7),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-class _WatchOrbit extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final paint = Paint()
-      ..color = line
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = .6;
-    canvas.drawOval(
-      Rect.fromCenter(center: center, width: 270, height: 150),
-      paint,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: center, width: 330, height: 205),
-      paint,
-    );
-    canvas.drawLine(
-      center - const Offset(185, 0),
-      center + const Offset(185, 0),
-      paint,
-    );
-    paint
-      ..color = cyan
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center + const Offset(138, -49), 3, paint);
-    canvas.drawCircle(center - const Offset(138, -49), 2, paint);
-    paint.color = green;
-    canvas.drawCircle(center + const Offset(120, 66), 2, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

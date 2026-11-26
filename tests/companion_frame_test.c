@@ -18,6 +18,19 @@ int main(void)
         }
     }
     assert(completed == 2); /* byte fragments + coalesced frames */
+    /* Reproduce the original BLE security probe poisoning hello. The transport
+     * must terminate that probe before the real frame; RS is not a reset byte. */
+    assert(wf_frame_push(&frame, 30) == 0);
+    for (const char *p = message; *p; ++p) wf_frame_push(&frame, (unsigned char)*p);
+    assert(strncmp(frame.data, WF_PREFIX, 5));
+    for (int probe = 0; probe < 2; ++probe) {
+        wf_frame_push(&frame, probe ? '\n' : 30);
+        wf_frame_push(&frame, '\n'); /* BLE transport boundary guard */
+        for (const char *p = message; *p; ++p) {
+            if (wf_frame_push(&frame, (unsigned char)*p) == 1)
+                assert(!strncmp(frame.data, WF_PREFIX, 5));
+        }
+    }
     for (int i = 0; i < WF_REQUEST_MAX; ++i) assert(wf_frame_push(&frame, 'x') == 0);
     assert(wf_frame_push(&frame, '\n') == 1); /* exact bound */
     for (int i = 0; i < WF_REQUEST_MAX + 50; ++i) assert(wf_frame_push(&frame, 'x') == 0);

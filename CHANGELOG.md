@@ -3,6 +3,30 @@
 All notable changes are documented here. WristFoundry follows Semantic
 Versioning once a version is published.
 
+## Unreleased - 0.3.0 candidate
+
+- Reduce full-width display transfers from 16,400 to 6,560 bytes to address
+  redraw stalls under BLE internal-memory pressure; expose largest DMA heap
+  block in diagnostics. Physical navigation acceptance remains pending.
+- Constrain mobile power dropdowns, show Wi-Fi scan progress/results and initialize
+  the phone timezone picker from the watch. Settings shortcut buttons use the
+  correct mobile routes. Include internal/PSRAM heap figures in redacted
+  diagnostics and release the default Wi-Fi interface after driver-init failure.
+- Fix Android BLE pairing-probe framing that could silently discard the first
+  handshake; Bluetooth timeout guidance now identifies the failing stage.
+- Shared compact watch artwork on the Android welcome screen, plus WF branding
+  in Android launcher/adaptive icons, Windows executable icon and both headers.
+- Android Flutter Companion with explicit BLE scanning, system passkey pairing,
+  shared settings, network/clock controls, app icons/navigation and diagnostics.
+- Settings section cards on watch, Windows and Android: Power & display, Wi-Fi,
+  Time & timezone, and Phone connection.
+- Watch-initiated 60-second discovery, authenticated/encrypted control, display
+  hold during active companion sessions, and five-minute user-idle disconnect.
+  Polling does not extend sessions. PWR can blank the display; disconnect restores
+  the saved power profile. Radar and phone sessions share exclusive radio ownership.
+- Debug APK packaging in CI. Hardware pairing, reconnect and battery acceptance
+  are pending; this candidate is not published. See docs/ANDROID_COMPANION.md.
+
 ## 0.2.0 - 2026-11-21
 
 ### Added

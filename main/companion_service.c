@@ -13,11 +13,14 @@
 #include "network_service.h"
 #include "time_sync_service.h"
 #include "settings_service.h"
+#include "phone_service.h"
+#include "phone_policy.h"
 #include "driver/usb_serial_jtag.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_system.h"
+#include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -28,6 +31,8 @@ static SemaphoreHandle_t s_ui;
 static wf_frame_t s_frame;
 static char s_output[WF_RESPONSE_MAX];
 static bool s_identified;
+static bool s_phone_route, s_phone_identified;
+static wf_frame_t s_phone_frame;
 static int64_t s_last_contact;
 static unsigned s_sequence;
 static char s_ui_action[48];
@@ -81,7 +86,8 @@ static void emit(cJSON *message)
         memcpy(s_output, WF_PREFIX, 5);
         size_t n = strlen(s_output);
         s_output[n++] = '\n';
-        if (xSemaphoreTake(s_tx, pdMS_TO_TICKS(100)) == pdTRUE) {
+        if (s_phone_route) phone_service_send(s_output, n);
+        else if (xSemaphoreTake(s_tx, pdMS_TO_TICKS(100)) == pdTRUE) {
             /* Partial TX is allowed to fail as a truncated frame; clients time
              * out and never acknowledge a partial or corrupt response. */
             usb_serial_jtag_write_bytes(s_output, n, pdMS_TO_TICKS(100));
@@ -146,6 +152,13 @@ static cJSON *snapshot(void)
     wf_settings_snapshot_t preferences;
     settings_service_get(&preferences);
     cJSON_AddNumberToObject(r, "settings_revision", preferences.revision);
+    wf_phone_snapshot_t phone;
+    phone_service_get(&phone);
+    cJSON *phone_json = cJSON_AddObjectToObject(r, "phone");
+    cJSON_AddBoolToObject(phone_json, "advertising", phone.advertising);
+    cJSON_AddBoolToObject(phone_json, "connected", phone.connected);
+    cJSON_AddBoolToObject(phone_json, "active", phone.active);
+    cJSON_AddNumberToObject(phone_json, "seconds_remaining", phone.seconds_remaining);
     cJSON_AddNumberToObject(r, "sequence", ++s_sequence);
     cJSON_AddBoolToObject(r, "display_awake", atomic_load(&s_display_awake));
     cJSON_AddNumberToObject(r, "uptime_ms", (double)(esp_timer_get_time() / 1000));
@@ -187,6 +200,11 @@ static cJSON *snapshot(void)
     cJSON_AddStringToObject(r, "time_source", t.last_source);
     cJSON_AddNumberToObject(r, "last_sync_epoch", (double)t.last_success_epoch);
     cJSON_AddNumberToObject(r, "free_heap", esp_get_free_heap_size());
+    cJSON_AddNumberToObject(r, "internal_heap_free", heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(r, "internal_heap_largest", heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(r, "internal_heap_minimum", heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+    cJSON_AddNumberToObject(r, "psram_heap_free", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    cJSON_AddNumberToObject(r, "dma_heap_largest", heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA));
     return r;
 }
 
@@ -233,7 +251,7 @@ static cJSON *hello(void)
     cJSON_AddStringToObject(r, "firmware", esp_app_get_description()->version);
     const char *caps[] = {"device.get", "wifi.scan", "wifi.configure", "wifi.connect",
         "wifi.disconnect", "time.set", "timezone.set", "ntp.sync", "ntp.cancel",
-        "settings.get", "settings.set", "settings.reset", "apps.list", "apps.open", "apps.home", "diagnostics.get"};
+        "settings.get", "settings.set", "settings.reset", "phone.get", "phone.discover", "phone.disconnect", "session.activity", "apps.list", "apps.open", "apps.home", "diagnostics.get"};
     cJSON_AddItemToObject(r, "capabilities", cJSON_CreateStringArray(caps, sizeof(caps)/sizeof(caps[0])));
     cJSON_AddBoolToObject(r, "app_packages", false);
     cJSON_AddNumberToObject(r, "request_max", WF_REQUEST_MAX);
@@ -291,11 +309,31 @@ static void dispatch(char *line)
     if (!id || !id[0] || !cmd || !cJSON_IsObject(p) ||
         cJSON_GetArraySize(q) != 4 || cJSON_GetArraySize(p) != expected_params) error = "invalid_argument";
     else if (!cJSON_IsNumber(v) || v->valuedouble != 1) error = "unsupported_version";
-    else if (!strcmp(cmd, "hello")) { result = hello(); s_identified = true; }
-    else if (!s_identified) error = "handshake_required";
+    else if (!strcmp(cmd, "hello")) {
+        result = hello();
+        if (s_phone_route) { s_phone_identified = true; phone_service_activity(true); }
+        else s_identified = true;
+    }
+    else if (!(s_phone_route ? s_phone_identified : s_identified)) error = "handshake_required";
     else if (!atomic_load(&s_display_awake) && wf_command_needs_awake(cmd)) error = "display_asleep";
     else if (!strcmp(cmd, "device.get") || !strcmp(cmd, "diagnostics.get")) result = snapshot();
-    else if (!strcmp(cmd, "settings.get")) {
+    else if (!strcmp(cmd, "session.activity")) {
+        if (s_phone_route) phone_service_activity(false);
+    } else if (!strcmp(cmd, "phone.get")) {
+        wf_phone_snapshot_t s; phone_service_get(&s);
+        result = cJSON_CreateObject();
+        cJSON_AddBoolToObject(result, "advertising", s.advertising);
+        cJSON_AddBoolToObject(result, "connected", s.connected);
+        cJSON_AddBoolToObject(result, "active", s.active);
+        cJSON_AddNumberToObject(result, "seconds_remaining", s.seconds_remaining);
+        cJSON_AddNumberToObject(result, "idle_timeout_seconds", 300);
+    } else if (!strcmp(cmd, "phone.discover")) {
+        if (s_phone_route || !phone_service_discover()) error = "busy";
+    } else if (!strcmp(cmd, "phone.disconnect")) {
+        /* USB can stop discovery/session; BLE clients close their own transport. */
+        if (s_phone_route) error = "unsupported_command";
+        else phone_service_stop();
+    } else if (!strcmp(cmd, "settings.get")) {
         result = settings_json();
     } else if (!strcmp(cmd, "settings.set") || !strcmp(cmd, "settings.reset")) {
         wf_settings_t settings = wf_settings_defaults();
@@ -342,7 +380,7 @@ static void dispatch(char *line)
         cJSON *epoch = cJSON_GetObjectItemCaseSensitive(p, "epoch_utc");
         esp_err_t e = cJSON_IsNumber(epoch) && epoch->valuedouble >= 1704067200.0 &&
             epoch->valuedouble <= 4102444799.0 && epoch->valuedouble == (double)(int64_t)epoch->valuedouble
-                ? time_sync_service_set_utc((int64_t)epoch->valuedouble, "USB COMPANION") : ESP_ERR_INVALID_ARG;
+                ? time_sync_service_set_utc((int64_t)epoch->valuedouble, s_phone_route ? "BLE COMPANION" : "USB COMPANION") : ESP_ERR_INVALID_ARG;
         if (e != ESP_OK) error = e == ESP_ERR_INVALID_ARG ? "invalid_argument" : e == ESP_ERR_INVALID_STATE ? "busy" : "rtc_write_failed";
     } else if (!strcmp(cmd, "apps.list")) {
         xSemaphoreTake(s_ui, portMAX_DELAY);
@@ -375,12 +413,14 @@ static void dispatch(char *line)
     } else error = "unsupported_command";
     if (error) { cJSON_Delete(result); error_reply(id, error); }
     else {
+        if (s_phone_route && wf_phone_command_activity(cmd))
+            phone_service_activity(false);
         cJSON *r = cJSON_CreateObject();
         cJSON_AddStringToObject(r, "id", id);
         if (!result) { result = cJSON_CreateObject(); cJSON_AddStringToObject(result, "status", "accepted"); }
         cJSON_AddItemToObject(r, "result", result);
         emit(r);
-        s_last_contact = esp_timer_get_time();
+        if (!s_phone_route) s_last_contact = esp_timer_get_time();
     }
     wipe_json(q);
     cJSON_Delete(q);
@@ -391,7 +431,9 @@ static void service_task(void *arg)
     (void)arg;
     unsigned char bytes[128];
     int64_t next_event = 0;
+    uint32_t phone_generation = 0;
     for (;;) {
+        s_phone_route = false;
         bool connected = usb_serial_jtag_is_connected();
         if (!connected || (s_identified && esp_timer_get_time() - s_last_contact > 15000000)) {
             if (s_identified) network_service_release_manual_connect();
@@ -406,6 +448,23 @@ static void service_task(void *arg)
             if (state == -1) error_reply(NULL, "frame_too_large");
         }
         wipe(bytes, sizeof(bytes));
+        uint32_t current_generation = phone_service_generation();
+        if (current_generation != phone_generation) {
+            phone_generation = current_generation;
+            s_phone_identified = false;
+            wipe(&s_phone_frame, sizeof(s_phone_frame));
+        }
+        unsigned char phone_bytes[244];
+        int phone_count = phone_service_read(phone_bytes, sizeof(phone_bytes));
+        s_phone_route = true;
+        for (int i = 0; i < phone_count; ++i) {
+            int state = wf_frame_push(&s_phone_frame, phone_bytes[i]);
+            if (state == 1) dispatch(s_phone_frame.data);
+            if (state) wipe(s_phone_frame.data, sizeof(s_phone_frame.data));
+            if (state == -1) phone_service_stop();
+        }
+        wipe(phone_bytes, sizeof(phone_bytes));
+        s_phone_route = false;
         if (s_identified && esp_timer_get_time() >= next_event) {
             cJSON *e = cJSON_CreateObject();
             cJSON_AddStringToObject(e, "event", "device.status");

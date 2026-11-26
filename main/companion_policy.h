@@ -7,5 +7,5 @@ static inline bool wf_command_needs_awake(const char *command)
 {
     return !strcmp(command, "wifi.scan") || !strcmp(command, "wifi.connect") ||
            !strcmp(command, "ntp.sync") || !strcmp(command, "apps.open") ||
-           !strcmp(command, "apps.home");
+           !strcmp(command, "apps.home") || !strcmp(command, "phone.discover");
 }

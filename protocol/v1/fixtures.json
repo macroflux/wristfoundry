@@ -64,6 +64,30 @@
       "params": {
         "expected_revision": 2
       }
+    },
+    {
+      "v": 1,
+      "id": "phone-example",
+      "cmd": "phone.get",
+      "params": {}
+    },
+    {
+      "v": 1,
+      "id": "phone-example",
+      "cmd": "phone.discover",
+      "params": {}
+    },
+    {
+      "v": 1,
+      "id": "phone-example",
+      "cmd": "phone.disconnect",
+      "params": {}
+    },
+    {
+      "v": 1,
+      "id": "phone-example",
+      "cmd": "session.activity",
+      "params": {}
     }
   ],
   "responses": [
@@ -145,6 +169,38 @@
         "off_seconds": 25,
         "usb_display": "stay_on",
         "radio_policy": "stop"
+      }
+    },
+    {
+      "v": 1,
+      "id": "bad-phone",
+      "cmd": "phone.get",
+      "params": {
+        "unexpected": true
+      }
+    },
+    {
+      "v": 1,
+      "id": "bad-phone",
+      "cmd": "phone.discover",
+      "params": {
+        "unexpected": true
+      }
+    },
+    {
+      "v": 1,
+      "id": "bad-phone",
+      "cmd": "phone.disconnect",
+      "params": {
+        "unexpected": true
+      }
+    },
+    {
+      "v": 1,
+      "id": "bad-phone",
+      "cmd": "session.activity",
+      "params": {
+        "unexpected": true
       }
     }
   ]
