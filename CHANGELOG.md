@@ -5,6 +5,8 @@ Versioning once a version is published.
 
 ## Unreleased - 0.3.0 candidate
 
+- Fix Android BLE pairing-probe framing that could silently discard the first
+  handshake; Bluetooth timeout guidance now identifies the failing stage.
 - Shared compact watch artwork on the Android welcome screen, plus WF branding
   in Android launcher/adaptive icons, Windows executable icon and both headers.
 - Android Flutter Companion with explicit BLE scanning, system passkey pairing,

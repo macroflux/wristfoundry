@@ -60,7 +60,7 @@ class MainActivity : FlutterActivity() {
                     "write" -> {
                         val data = call.arguments as? ByteArray
                         if (!ready || data == null) result.error("disconnected", null, null)
-                        else if (data.size > 1025 || writes.size >= 4) result.error("busy", null, null)
+                        else if (data.size > 1026 || writes.size >= 4) result.error("busy", null, null)
                         else { writes.add(Write(data.copyOf(), result)); if (writes.size == 1) sendChunk() }
                     }
                     "close" -> { close(); result.success(null) }
@@ -154,8 +154,9 @@ class MainActivity : FlutterActivity() {
                 if (client !== gatt) return@post
                 if (status != BluetoothGatt.GATT_SUCCESS) { fail("pairing_failed"); return@post }
                 // Encrypted/authenticated RX triggers Android's system passkey dialog.
-                // RS alone is not a command and is overwritten by the hello frame.
-                if (!writeValue(byteArrayOf(30))) fail("pairing_failed")
+                // A blank line leaves firmware v1's line parser at a clean boundary.
+                // An RS-only probe would be prepended to the first hello frame.
+                if (!writeValue(byteArrayOf(10))) fail("pairing_failed")
             }
         }
         override fun onCharacteristicWrite(client: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {

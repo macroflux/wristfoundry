@@ -71,7 +71,15 @@ class AndroidBleTransport implements Transport {
   @override
   Future<void> write(Uint8List bytes) async {
     if (_closed) throw const DeviceFailure('disconnected');
-    await AndroidBleDiscovery.channel.invokeMethod<void>('write', bytes);
+    // End any security-probe/partial line before the complete protocol frame.
+    // Firmware v1 deliberately does not resynchronize at an embedded RS.
+    final guarded = Uint8List(bytes.length + 1)..[0] = 10;
+    guarded.setRange(1, guarded.length, bytes);
+    try {
+      await AndroidBleDiscovery.channel.invokeMethod<void>('write', guarded);
+    } finally {
+      guarded.fillRange(0, guarded.length, 0);
+    }
   }
 
   @override

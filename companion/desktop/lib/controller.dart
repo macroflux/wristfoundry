@@ -240,12 +240,18 @@ class CompanionController extends ChangeNotifier {
       _notify();
     } catch (e) {
       if (epoch != _epoch || _disposed) return;
+      final failedStage = stage;
       await _events?.cancel();
       _events = null;
       await client?.close();
       _client = null;
       stage = ConnectionStage.error;
       errorCode = e is DeviceFailure ? e.code : 'connection_failed';
+      if (wireless && errorCode == 'timeout') {
+        errorCode = failedStage == ConnectionStage.identifying
+            ? 'ble_handshake_timeout'
+            : 'ble_status_timeout';
+      }
       _record('connection_error');
       snapshot = {};
       identity = {};
@@ -426,6 +432,10 @@ String describeFailure(String? code) => switch (code) {
   'port_in_use' => 'Port is busy. Close the other application, then retry.',
   'timeout' =>
     'The watch did not reply in time. Check the data cable and compatible firmware, then retry.',
+  'ble_handshake_timeout' =>
+    'Bluetooth connected, but the watch did not answer the WristFoundry handshake. Restart discovery on the watch and reconnect.',
+  'ble_status_timeout' =>
+    'The watch identified over Bluetooth, but its status reply timed out. Disconnect, wake the watch and reconnect.',
   'wrong_device' || 'identity_changed' =>
     'This port did not identify as the selected WristFoundry. Select the correct watch.',
   'unsupported_version' || 'incompatible_firmware' =>

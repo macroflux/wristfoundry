@@ -58,6 +58,15 @@ result. Secure firmware must only be compiled, never routinely flashed.
 
 ## Remaining physical acceptance
 
+The owner reported a real BLE handshake timeout after entering the watch code.
+Source inspection found that the native RS-only pairing probe remained in the
+firmware line buffer, causing the following hello frame to be discarded. The
+candidate now probes with LF and adds an LF boundary before BLE requests for
+compatibility with the previous native bridge. Flutter regression coverage and
+analysis passed (31 tests); a C framing regression is added for CI execution.
+The corrected APK still needs building/installing and a physical retry. This
+fix does not require changing the watch protocol or flashing new firmware.
+
 Run the sequence in ANDROID_COMPANION.md on the real watch and phone. Pairing
 codes, encrypted GATT, MTU fragmentation, fresh discovery after disconnect,
 the five-minute timeout despite polling, display/PWR behavior, full stack release,
