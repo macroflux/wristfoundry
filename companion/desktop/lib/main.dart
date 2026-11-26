@@ -210,7 +210,12 @@ class _CompanionAppState extends State<CompanionApp> {
             borderRadius: BorderRadius.circular(11),
             border: Border.all(color: line),
           ),
-          child: const Icon(Icons.watch_outlined, color: cyan, size: 24),
+          child: Image.asset(
+            'assets/wristfoundry-mark.png',
+            width: 24,
+            height: 24,
+            excludeFromSemantics: true,
+          ),
         ),
         const SizedBox(width: 13),
         const Column(

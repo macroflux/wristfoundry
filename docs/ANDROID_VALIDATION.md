@@ -49,6 +49,10 @@ result. Secure firmware must only be compiled, never routinely flashed.
 - The welcome layout now reuses the Windows watch illustration. Tests verify
   zero welcome scroll extent and reachable scan/demo actions at 384x832 and
   360x640 logical pixels. All 29 Flutter tests passed; analysis passed.
+- WF branding was added to both Flutter headers, five Android launcher densities,
+  a padded adaptive foreground and a seven-size Windows ICO. Android resource XML,
+  generated manifest/overlay and all ICO image sizes were verified. The revised
+  app packages still need CI rebuilding and installation before phone review.
 - A known-device COM7 flash attempt failed at port opening with Access denied.
   No flash write occurred. An app-only manual update script was prepared locally.
 

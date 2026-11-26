@@ -5,6 +5,8 @@ Versioning once a version is published.
 
 ## Unreleased - 0.3.0 candidate
 
+- Shared compact watch artwork on the Android welcome screen, plus WF branding
+  in Android launcher/adaptive icons, Windows executable icon and both headers.
 - Android Flutter Companion with explicit BLE scanning, system passkey pairing,
   shared settings, network/clock controls, app icons/navigation and diagnostics.
 - Settings section cards on watch, Windows and Android: Power & display, Wi-Fi,

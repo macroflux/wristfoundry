@@ -71,7 +71,19 @@ class _MobileCompanionAppState extends State<MobileCompanionApp>
       onPointerDown: (_) => unawaited(c.noteInteraction()),
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('WristFoundry'),
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image.asset(
+                'assets/wristfoundry-mark.png',
+                width: 32,
+                height: 32,
+                excludeFromSemantics: true,
+              ),
+              const SizedBox(width: 10),
+              const Text('WristFoundry'),
+            ],
+          ),
           actions: [
             if (c.ready)
               IconButton(

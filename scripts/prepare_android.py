@@ -21,6 +21,7 @@ for path in generated_extras:
 target = APP / "android/app/src/main/kotlin/io/wristfoundry/wristfoundry_companion/MainActivity.kt"
 target.parent.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(ROOT / "companion/android-native/MainActivity.kt", target)
+shutil.copytree(ROOT / "companion/android-native/res", APP / "android/app/src/main/res", dirs_exist_ok=True)
 manifest = APP / "android/app/src/main/AndroidManifest.xml"
 content = manifest.read_text()
 permissions = '''
@@ -34,6 +35,8 @@ permissions = '''
 if 'android.permission.BLUETOOTH_SCAN' not in content:
     content = content.replace('    <application', permissions + '    <application', 1)
 content = content.replace('android:label="wristfoundry_companion"', 'android:label="WristFoundry Companion"')
+if 'android:roundIcon=' not in content:
+    content = content.replace('android:icon="@mipmap/ic_launcher"', 'android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"')
 manifest.write_text(content)
 gradle = APP / "android/app/build.gradle.kts"
 content = gradle.read_text().replace('minSdk = flutter.minSdkVersion', 'minSdk = 23')
