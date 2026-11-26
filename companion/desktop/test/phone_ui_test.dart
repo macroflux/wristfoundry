@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wristfoundry_companion/controller.dart';
 import 'package:wristfoundry_companion/mobile_app.dart';
@@ -13,6 +14,26 @@ void main() {
   testWidgets('welcome graphic and actions fit on one phone screen', (
     tester,
   ) async {
+    await tester.runAsync(() async {
+      final sdk = Platform.environment['FLUTTER_ROOT'];
+      if (sdk != null) {
+        for (final entry in {
+          'Roboto': 'Roboto-Regular.ttf',
+          'MaterialIcons': 'MaterialIcons-Regular.otf',
+        }.entries) {
+          final file = File(
+            '$sdk/bin/cache/artifacts/material_fonts/${entry.value}',
+          );
+          if (file.existsSync()) {
+            final loader = FontLoader(entry.key)
+              ..addFont(
+                Future.value(ByteData.sublistView(file.readAsBytesSync())),
+              );
+            await loader.load();
+          }
+        }
+      }
+    });
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
