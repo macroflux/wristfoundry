@@ -5,6 +5,7 @@ import 'settings_sections.dart';
 import 'timezones.dart';
 import 'transport.dart';
 import 'app_icon.dart';
+import 'watch_preview.dart';
 
 /// Phone layout shares the controller, contracts, settings editor and icon map.
 class MobileCompanionApp extends StatefulWidget {
@@ -81,22 +82,25 @@ class _MobileCompanionAppState extends State<MobileCompanionApp>
           ],
         ),
         body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (c.demo) const Text('DEMO · Simulated watch'),
-                if (c.operationMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(c.operationMessage!),
+          child: !c.ready
+              ? welcome()
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (c.demo) const Text('DEMO · Simulated watch'),
+                      if (c.operationMessage != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: Text(c.operationMessage!),
+                        ),
+                      if (c.busy || c.connecting)
+                        const LinearProgressIndicator(),
+                      ...content(),
+                    ],
                   ),
-                if (c.busy || c.connecting) const LinearProgressIndicator(),
-                if (!c.ready) ...connect() else ...content(),
-              ],
-            ),
-          ),
+                ),
         ),
         bottomNavigationBar: !c.ready
             ? null
@@ -130,16 +134,46 @@ class _MobileCompanionAppState extends State<MobileCompanionApp>
       ),
     ),
   );
-  List<Widget> connect() => [
+  Widget welcome() => LayoutBuilder(
+    builder: (context, bounds) {
+      final graphicHeight = (bounds.maxHeight * .25).clamp(100.0, 180.0);
+      return SingleChildScrollView(
+        key: const ValueKey('phone-welcome-scroll'),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: connect(graphicHeight),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+  List<Widget> connect(double graphicHeight) => [
     const Text(
       'Your watch, within reach.',
-      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+      style: TextStyle(fontSize: 27, fontWeight: FontWeight.bold),
+    ),
+    const SizedBox(height: 8),
+    SizedBox(
+      height: graphicHeight,
+      child: const FittedBox(
+        fit: BoxFit.contain,
+        child: SizedBox(
+          width: 380,
+          height: 235,
+          child: WatchPreview(linkLabel: 'BLE / v1'),
+        ),
+      ),
+    ),
+    const SizedBox(height: 12),
+    const Text(
+      'On your watch: Settings → Phone connection → Discover for 60 seconds.\nScan here, then enter the watch code when Android asks.',
     ),
     const SizedBox(height: 16),
-    const Text(
-      'On your watch: Settings → Phone connection → Discover for 60 seconds.\nScan here, select your watch, then enter its six-digit code in Android’s pairing dialog.',
-    ),
-    const SizedBox(height: 20),
     FilledButton.icon(
       onPressed: c.connecting
           ? null
@@ -151,17 +185,26 @@ class _MobileCompanionAppState extends State<MobileCompanionApp>
       label: const Text('Scan for watches'),
     ),
     if (c.errorCode != null) Text(describeFailure(c.errorCode)),
-    for (final Candidate device in c.devices)
-      Card(
-        child: ListTile(
-          title: Text(device.label),
-          subtitle: const Text('Tap to connect'),
-          onTap: c.connecting
-              ? null
-              : () {
-                  c.select(device);
-                  c.connect();
-                },
+    if (c.devices.isNotEmpty)
+      ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 160),
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final Candidate device in c.devices)
+              Card(
+                child: ListTile(
+                  title: Text(device.label),
+                  subtitle: const Text('Tap to connect'),
+                  onTap: c.connecting
+                      ? null
+                      : () {
+                          c.select(device);
+                          c.connect();
+                        },
+                ),
+              ),
+          ],
         ),
       ),
     if (c.connecting)

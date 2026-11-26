@@ -1,11 +1,62 @@
+import 'dart:io';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wristfoundry_companion/controller.dart';
 import 'package:wristfoundry_companion/mobile_app.dart';
 import 'package:wristfoundry_companion/settings_sections.dart';
+import 'package:wristfoundry_companion/watch_preview.dart';
 import 'controller_test.dart' show Discovery;
 
 void main() {
+  testWidgets('welcome graphic and actions fit on one phone screen', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    for (final size in [const Size(384, 832), const Size(360, 640)]) {
+      tester.view.physicalSize = size;
+      final c = CompanionController(Discovery());
+      const capture = ValueKey('mobile-welcome-capture');
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: capture,
+          child: MobileCompanionApp(controller: c),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(WatchPreview), findsOneWidget);
+      final scrollable = tester.state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('phone-welcome-scroll')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(scrollable.position.maxScrollExtent, 0);
+      expect(find.text('Scan for watches').hitTestable(), findsOneWidget);
+      expect(find.text('Try demo').hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      if (size.width == 384) {
+        final boundary = tester.renderObject<RenderRepaintBoundary>(
+          find.byKey(capture),
+        );
+        final image = boundary.toImageSync();
+        await tester.runAsync(() async {
+          final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+          Directory('review-captures').createSync(recursive: true);
+          File(
+            'review-captures/10-android-welcome.png',
+          ).writeAsBytesSync(bytes!.buffer.asUint8List());
+          image.dispose();
+        });
+      }
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
   testWidgets('settings opens cards before the power form', (tester) async {
     final c = CompanionController(Discovery());
     await tester.runAsync(() async {

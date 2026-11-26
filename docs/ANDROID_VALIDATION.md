@@ -1,7 +1,8 @@
 # Android/BLE candidate validation
 
-Source version 0.3.0, unreleased. Stable 0.2.0 is unchanged. No new firmware
-has been flashed and no installable APK or Windows candidate is claimed here.
+Source version 0.3.0, unreleased. Stable 0.2.0 is unchanged. CI packages are
+available and the Android APK is installed for UI review. The watch update
+and physical Bluetooth acceptance remain pending.
 
 ## Local checks
 
@@ -34,7 +35,24 @@ with checksums. Windows packaging and both firmware profiles also need CI.
 Native C policy tests are included in CI; their presence is not a local execution
 result. Secure firmware must only be compiled, never routinely flashed.
 
-## Physical acceptance pending
+## CI and UI review at source 92bb70c
+
+- Firmware CI run 45240521222 and Companion run 45240521200 completed successfully.
+  Both firmware profiles and the Windows/Android build jobs passed.
+- Downloaded Android and development firmware artifacts were checked against
+  their GitHub SHA-256 digests and internal manifests. The development partition
+  table is unchanged from 0.2.0. Application SHA-256:
+  `3c5d5b3543c4ee989c1afd1b9ba5d141dbb49544e66ecd728c6dc8a6c0377863`.
+- ADB installed and opened Android version 0.3.0 (versionCode 3). The owner
+  reviewed Demo mode and approved its appearance, requesting the shared watch
+  graphic on the opening screen and a compact layout.
+- The welcome layout now reuses the Windows watch illustration. Tests verify
+  zero welcome scroll extent and reachable scan/demo actions at 384x832 and
+  360x640 logical pixels. All 29 Flutter tests passed; analysis passed.
+- A known-device COM7 flash attempt failed at port opening with Access denied.
+  No flash write occurred. An app-only manual update script was prepared locally.
+
+## Remaining physical acceptance
 
 Run the sequence in ANDROID_COMPANION.md on the real watch and phone. Pairing
 codes, encrypted GATT, MTU fragmentation, fresh discovery after disconnect,
